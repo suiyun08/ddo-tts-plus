@@ -120,6 +120,16 @@
       @remove="removeBookmark"
     />
     <BookmarkEditor ref="bookmarkEditor" @changed="loadBookmarks" />
+    <div
+      v-if="pageMarker"
+      class="page-marker"
+      :class="{ fading: pageMarker.fading }"
+      :style="{
+        top: pageMarker.top + 'px',
+        left: pageMarker.left + 'px',
+        height: pageMarker.height + 'px',
+      }"
+    ></div>
     <div class="chapter-bar"></div>
     <div
       class="chapter"
@@ -160,7 +170,7 @@ import jump from '@/plugins/jump'
 import settings from '@/config/themeConfig'
 import API from '@api'
 import { useLoading } from '@/hooks/loading'
-import { useThrottleFn } from '@vueuse/shared'
+import { useDebounceFn } from '@vueuse/shared'
 import { isNullOrBlank } from '@/utils/utils'
 import { CollectionTag } from '@element-plus/icons-vue'
 import BookmarkPanel from '@/components/BookmarkPanel.vue'
@@ -306,6 +316,8 @@ const rightBarTheme = computed(() => {
  * 阅读宽度最小为640px 加上工具栏 68px 52px 取较大值 为 776px
  */
 const onResize = () => {
+  // 窗口尺寸变化后行位置会变，翻页标记失效
+  clearPageMarker()
   store.setMiniInterface(window.innerWidth < 776)
   const width = store.config.readWidth /**包含padding */
   checkPageWidth(width)
@@ -350,6 +362,7 @@ const getContent = (index: number, reloadChapter = true, chapterPos = 0) => {
     //从目录，按钮切换章节时保存进度 预加载时不保存
     saveReadingBookProgressToBrowser(index, chapterPos)
     chapterData.value = []
+    clearPageMarker()
   }
   const bookUrl = store.readingBook.bookUrl
   const { title, index: chapterIndex } = catalog.value[index]
@@ -394,7 +407,19 @@ const toChapterPos = (pos: number) => {
     if (chapterRef.value.length !== 1) return
     const target = pendingBookmark
     pendingBookmark = null
-    if (target) chapterRef.value[0].scrollToBookmark(target)
+    if (pendingChapterEnd) {
+      // 往前翻进入上一章：停在章末，并标出最后一行
+      pendingChapterEnd = false
+      // 用 jump 滚动：切章开头排队的「回到顶部」也走 jump，同一个 jump 以最后一次为准，不会被覆盖
+      jump(bottom.value, {
+        duration: 0,
+        callback: () => {
+          const lines = collectLines()
+          const last = lines[lines.length - 1]
+          if (last) showPageMarker(last, 'right')
+        },
+      })
+    } else if (target) chapterRef.value[0].scrollToBookmark(target)
     else chapterRef.value[0].scrollToReadedLength(pos)
   })
 }
@@ -605,15 +630,20 @@ const onEscape = (event: KeyboardEvent) => {
   if (event.key === 'Escape') closeBookmarkPopover()
 }
 
-// 60秒保存一次进度
-const saveBookProgressThrottle = useThrottleFn(
-  () => store.saveBookProgress(),
-  60000,
+// 停止滚动 2 秒后保存进度；持续滚动时最多 10 秒保存一次
+let lastProgressSaveTime = 0
+const saveBookProgressDebounced = useDebounceFn(
+  () => {
+    lastProgressSaveTime = Date.now()
+    return store.saveBookProgress()
+  },
+  2000,
+  { maxWait: 10000 },
 )
 
 const onReadedLengthChange = (index: number, pos: number) => {
   saveReadingBookProgressToBrowser(index, pos)
-  saveBookProgressThrottle()
+  saveBookProgressDebounced()
 }
 
 // 文档标题
@@ -639,8 +669,54 @@ const saveReadingBookProgressToBrowser = (index: number, pos: number) => {
 const onVisibilityChange = () => {
   const _bookProgress = bookProgress.value
   if (document.visibilityState == 'hidden' && _bookProgress) {
+    lastProgressSaveTime = Date.now()
     store.saveBookProgress()
+  } else if (document.visibilityState == 'visible') {
+    checkPhoneProgress()
   }
+}
+
+/**
+ * 切回网页时检查手机端进度：手机读得更靠后、且是在网页上次保存之后读的，提示是否跳转
+ */
+let lastPhoneCheckTime = 0
+let phoneProgressNotice: { close: () => void } | null = null
+const checkPhoneProgress = async () => {
+  const now = Date.now()
+  if (now - lastPhoneCheckTime < 3000) return
+  lastPhoneCheckTime = now
+  const { bookUrl } = store.readingBook
+  try {
+    const res = await API.getBookShelf()
+    if (!res.data.isSuccess) return
+    const phone = res.data.data.find(book => book.bookUrl === bookUrl)
+    if (!phone || phone.durChapterTime <= lastProgressSaveTime + 1000) return
+    const ahead =
+      phone.durChapterIndex > chapterIndex.value ||
+      (phone.durChapterIndex === chapterIndex.value &&
+        phone.durChapterPos > chapterPos.value)
+    if (!ahead || typeof catalog.value[phone.durChapterIndex] === 'undefined') return
+    phoneProgressNotice?.close()
+    const title =
+      phone.durChapterTitle || catalog.value[phone.durChapterIndex].title
+    phoneProgressNotice = ElNotification({
+      title: '手机端进度更靠后',
+      message: `手机已读到「${title}」，点击跳转`,
+      position: 'top-right',
+      duration: 10000,
+      customClass: 'phone-progress-notice',
+      onClick: () => {
+        phoneProgressNotice?.close()
+        store.setContentLoading(true)
+        getContent(phone.durChapterIndex, true, phone.durChapterPos)
+      },
+    })
+  } catch (e) {
+    console.warn('[BookChapter]: 获取手机端进度失败', e)
+  }
+}
+const onWindowFocus = () => {
+  if (document.visibilityState == 'visible') checkPhoneProgress()
 }
 // 定时同步
 
@@ -680,10 +756,134 @@ const toPreChapter = () => {
   }
 }
 
+// 翻页：空格、上下键、PageUp/PageDown 翻一屏（保留约两行重叠），翻到章首章末继续翻会自动换章；左右键切换章节
+/** 翻页时保留的重叠高度，方便衔接上一屏 */
+const PAGE_OVERLAP = 100
+type LineBox = { top: number; bottom: number; left: number; right: number }
+
+/** 收集正文中当前视口附近的文字行（视口坐标），按从上到下排序 */
+const collectLines = (): LineBox[] => {
+  const viewHeight = document.documentElement.clientHeight
+  const lines: LineBox[] = []
+  const blocks = content.value?.querySelectorAll('.title, [data-chapterpos] p') ?? []
+  const range = document.createRange()
+  for (const block of blocks) {
+    const blockRect = block.getBoundingClientRect()
+    if (blockRect.bottom < -viewHeight || blockRect.top > viewHeight * 2) continue
+    range.selectNodeContents(block)
+    for (const rect of range.getClientRects()) {
+      if (rect.width === 0 || rect.height === 0) continue
+      const line = lines.find(
+        l => Math.abs(l.top - rect.top) < rect.height / 2 && l.bottom > rect.top,
+      )
+      if (line) {
+        line.top = Math.min(line.top, rect.top)
+        line.bottom = Math.max(line.bottom, rect.bottom)
+        line.left = Math.min(line.left, rect.left)
+        line.right = Math.max(line.right, rect.right)
+      } else {
+        lines.push({ top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right })
+      }
+    }
+  }
+  return lines.sort((a, b) => a.top - b.top)
+}
+
+// 翻页定位标记：往后翻标出接下来要读的行（行首左侧，5 秒后淡出）；
+// 往前翻标出读到哪一行就能接上后文（行尾右侧，保留到下次翻页）
+const pageMarker = ref<{
+  top: number
+  left: number
+  height: number
+  fading: boolean
+} | null>(null)
+let pageMarkerTimers: number[] = []
+const clearPageMarker = () => {
+  pageMarkerTimers.forEach(clearTimeout)
+  pageMarkerTimers = []
+  pageMarker.value = null
+}
+/** @param line 视口坐标下的行，按当前滚动位置换算成页面坐标 */
+const showPageMarker = (line: LineBox, side: 'left' | 'right') => {
+  clearPageMarker()
+  const height = (line.bottom - line.top) * 0.6
+  pageMarker.value = {
+    top: line.top + window.scrollY + (line.bottom - line.top - height) / 2,
+    left: side === 'left' ? line.left + window.scrollX - 10 : line.right + window.scrollX + 6,
+    height,
+    fading: false,
+  }
+  if (side === 'left') {
+    pageMarkerTimers.push(
+      window.setTimeout(() => {
+        if (pageMarker.value) pageMarker.value.fading = true
+      }, 5000),
+      window.setTimeout(clearPageMarker, 5800),
+    )
+  }
+}
+
+const isAtPageBottom = () => {
+  const root = document.documentElement
+  return root.clientHeight + root.scrollTop >= root.scrollHeight - 2
+}
+const isAtPageTop = () => document.documentElement.scrollTop <= 1
+
+/** 往前翻进入上一章后停在章末 */
+let pendingChapterEnd = false
+const autoSwitchChapter = (forward: boolean) => {
+  const loaded = chapterData.value
+  if (loaded.length === 0) return
+  const index = forward ? loaded[loaded.length - 1].index + 1 : loaded[0].index - 1
+  if (typeof catalog.value[index] === 'undefined') {
+    ElMessage.warning(forward ? '已经是最后一章' : '已经是第一章')
+    return
+  }
+  ElMessage({ message: catalog.value[index].title, duration: 1500 })
+  store.setContentLoading(true)
+  pendingChapterEnd = !forward
+  getContent(index)
+  store.saveBookProgress()
+}
+
+const turnPage = (forward: boolean) => {
+  if (forward ? isAtPageBottom() : isAtPageTop()) {
+    autoSwitchChapter(forward)
+    return
+  }
+  const viewHeight = document.documentElement.clientHeight
+  const lines = collectLines()
+  if (forward) {
+    const lastFull = [...lines].reverse().find(l => l.top >= 0 && l.bottom <= viewHeight + 0.5)
+    const next = lastFull ? lines.find(l => l.top >= lastFull.bottom - 1) : undefined
+    if (next) showPageMarker(next, 'left')
+    else clearPageMarker()
+  } else {
+    const firstFull = lines.find(l => l.top >= -0.5 && l.bottom <= viewHeight)
+    const prev = firstFull ? [...lines].reverse().find(l => l.bottom <= firstFull.top + 1) : undefined
+    if (prev) showPageMarker(prev, 'right')
+    else clearPageMarker()
+  }
+  canJump = false
+  jump((forward ? 1 : -1) * (viewHeight - PAGE_OVERLAP), {
+    duration: store.config.jumpDuration,
+    callback: () => (canJump = true),
+  })
+}
+
+/** 正在输入或有弹窗时不响应翻页按键 */
+const shouldIgnoreKey = (event: KeyboardEvent) => {
+  const target = event.target as HTMLElement | null
+  if (target?.closest?.('input, textarea, select, [contenteditable="true"]')) return true
+  return [...document.querySelectorAll('.el-overlay')].some(
+    el => (el as HTMLElement).style.display !== 'none',
+  )
+}
+
 let canJump = true
-// 监听方向键
+// 监听按键
 const handleKeyPress = (event: KeyboardEvent) => {
-  if (!canJump) return
+  if (!canJump || shouldIgnoreKey(event)) return
   switch (event.key) {
     case 'ArrowLeft':
       event.stopPropagation()
@@ -696,41 +896,29 @@ const handleKeyPress = (event: KeyboardEvent) => {
       toNextChapter()
       break
     case 'ArrowUp':
+    case 'PageUp':
       event.stopPropagation()
       event.preventDefault()
-      if (document.documentElement.scrollTop === 0) {
-        ElMessage.warning('已到达页面顶部')
-      } else {
-        canJump = false
-        jump(0 - document.documentElement.clientHeight + 100, {
-          duration: store.config.jumpDuration,
-          callback: () => (canJump = true),
-        })
-      }
+      turnPage(false)
       break
     case 'ArrowDown':
+    case 'PageDown':
       event.stopPropagation()
       event.preventDefault()
-      if (
-        document.documentElement.clientHeight +
-          document.documentElement.scrollTop ===
-        document.documentElement.scrollHeight
-      ) {
-        ElMessage.warning('已到达页面底部')
-      } else {
-        canJump = false
-        jump(document.documentElement.clientHeight - 100, {
-          duration: store.config.jumpDuration,
-          callback: () => (canJump = true),
-        })
-      }
+      turnPage(true)
+      break
+    case ' ':
+      event.stopPropagation()
+      event.preventDefault()
+      turnPage(!event.shiftKey)
       break
   }
 }
 
-// 阻止默认滚动事件
+// 阻止浏览器默认的按键滚动，统一由 handleKeyPress 翻页
+const PAGE_KEYS = ['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', ' ']
 const ignoreKeyPress = (event: KeyboardEvent) => {
-  if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+  if (PAGE_KEYS.includes(event.key) && !shouldIgnoreKey(event)) {
     event.preventDefault()
     event.stopPropagation()
   }
@@ -771,6 +959,7 @@ onMounted(async () => {
       window.addEventListener('keydown', onEscape)
       window.addEventListener('keyup', handleKeyPress)
       window.addEventListener('keydown', ignoreKeyPress)
+      window.addEventListener('focus', onWindowFocus)
       // 兼容Safari < 14
       document.addEventListener('visibilitychange', onVisibilityChange)
       //监听底部加载
@@ -789,6 +978,9 @@ onUnmounted(() => {
   window.removeEventListener('keyup', handleKeyPress)
   window.removeEventListener('keydown', ignoreKeyPress)
   window.removeEventListener('resize', onResize)
+  window.removeEventListener('focus', onWindowFocus)
+  clearPageMarker()
+  phoneProgressNotice?.close()
   // 兼容Safari < 14
   document.removeEventListener('visibilitychange', onVisibilityChange)
   document.removeEventListener('selectionchange', onSelectionChange)
@@ -918,6 +1110,21 @@ onBeforeRouteLeave(async (to, from, next) => {
           margin: 0 auto 6px;
         }
       }
+    }
+  }
+
+  .page-marker {
+    position: absolute;
+    z-index: 50;
+    width: 3px;
+    border-radius: 2px;
+    background: #ed4259;
+    opacity: 0.7;
+    pointer-events: none;
+    transition: opacity 0.8s;
+
+    &.fading {
+      opacity: 0;
     }
   }
 

@@ -4,7 +4,7 @@
     v-for="(para, index) in contents"
     :key="index"
     ref="paragraphRef"
-    :data-chapterpos="chapterPos[index]"
+    :data-chapterpos="paragraphStarts[index]"
   >
     <img
       class="full"
@@ -112,24 +112,37 @@ const calculateWordCount = (paragraph: string) => {
   const imagePlaceHolder = ' '
   return paragraph.replace(imgPattern, imagePlaceHolder).length
 }
-const chapterPos = computed(() => {
-  let pos = -1
+/**
+ * 章节内位置统一用手机端口径，与手机互通进度和书签：
+ * 手机排版把标题和换行也计入位置，网页正文不含标题（段首缩进两边都有），
+ * 所以 手机位置 = 网页正文位置 + 标题长度 + 1
+ */
+const titleOffset = computed(() => props.title.length + 1)
+/** 各段落起始位置（手机口径） */
+const paragraphStarts = computed(() => {
+  let pos = titleOffset.value
   return Array.from(props.contents, content => {
-    pos += calculateWordCount(content) + 1 //计算上一段的换行符
-    return pos
+    const start = pos
+    pos += calculateWordCount(content) + 1 //计算段落换行符
+    return start
   })
 })
+/** 位置所在的段落下标，位于标题内返回 -1 */
+const paragraphIndexAt = (pos: number) => {
+  const starts = paragraphStarts.value
+  let index = -1
+  while (index + 1 < starts.length && starts[index + 1] <= pos) index++
+  return index
+}
 
 const titleRef = ref<HTMLElement>()
 const paragraphRef = ref<HTMLParagraphElement[]>()
 const scrollToReadedLength = (length: number) => {
-  if (length === 0) return
-  const paragraphIndex = chapterPos.value.findIndex(
-    wordCount => wordCount >= length,
-  )
+  if (length <= 0) return
+  const paragraphIndex = paragraphIndexAt(length)
   if (paragraphIndex === -1) return
   nextTick(() => {
-    jump(paragraphRef.value![paragraphIndex], {
+    jump(sortedParagraphs()[paragraphIndex], {
       duration: 0,
     })
   })
@@ -143,12 +156,6 @@ const sortedParagraphs = () =>
       Number((a as HTMLElement).dataset.chapterpos) -
       Number((b as HTMLElement).dataset.chapterpos),
   ) as HTMLElement[]
-/** 各段落在网页口径下的起始位置 */
-const paragraphStarts = computed(() =>
-  props.contents.map(
-    (content, index) => chapterPos.value[index] - calculateWordCount(content),
-  ),
-)
 const buildIndex = () => buildTextIndex(sortedParagraphs(), paragraphStarts.value)
 
 const renderMarks = () => {
@@ -188,7 +195,7 @@ const scrollToBookmark = (bookmark: Bookmark) => {
   })
 }
 
-/** 计算选区起点在网页口径下的章节位置，不在本章正文内返回 undefined */
+/** 计算选区起点的章节位置（手机口径），不在本章正文内返回 undefined */
 const positionOf = (node: Node, offset: number) => {
   const paragraphs = sortedParagraphs()
   const paragraph = paragraphs.findIndex(element => element.contains(node))
@@ -224,8 +231,7 @@ const bookmarksAt = (node: Node, offset: number) => {
 
 /** 当前阅读位置所在段落的纯文本和起始位置 */
 const paragraphAt = (length: number) => {
-  let index = chapterPos.value.findIndex(wordCount => wordCount >= length)
-  if (index < 0) index = 0
+  const index = Math.max(paragraphIndexAt(length), 0)
   const content = props.contents[index]
   if (content === undefined) return
   const text = content.replace(/<[^>]+>/g, '').trim()

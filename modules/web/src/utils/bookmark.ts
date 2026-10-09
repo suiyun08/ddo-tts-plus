@@ -3,7 +3,7 @@ import type { Bookmark } from '@/book'
 /**
  * 书签定位工具，规则与手机端 BookmarkMarker 一致：
  * 去掉空白后按书签原文在正文中匹配，多处命中时取离书签位置最近的一处，匹配到的文字画虚线。
- * 手机和网页的章节位置口径不同（手机含标题和段首缩进），位置只作就近参考。
+ * 网页已按手机口径计算位置（见 ChapterContent），旧版网页书签的位置略有偏差，位置只作就近参考。
  * 旧版菜单书签记录的是整页原文（超过 LONG_TEXT_LENGTH），只标出其第一句。
  */
 
@@ -54,7 +54,7 @@ type CharPoint = {
   node: Text
   offset: number
   paragraph: number
-  /** 网页口径的章节位置 */
+  /** 章节位置（手机口径） */
   pos: number
 }
 
@@ -66,7 +66,7 @@ export type ChapterTextIndex = {
 /**
  * 建立章节正文索引
  * @param paragraphs 各段落元素
- * @param paragraphStarts 各段落在网页口径下的起始位置
+ * @param paragraphStarts 各段落的起始位置（手机口径）
  */
 export const buildTextIndex = (
   paragraphs: HTMLElement[],

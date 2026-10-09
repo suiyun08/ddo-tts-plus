@@ -115,7 +115,7 @@ export type Bookmark = {
   bookName: string
   bookAuthor: string
   chapterIndex: number
-  /** 章节内位置。手机端含标题和段首缩进，网页端不含，只作就近匹配的参考 */
+  /** 章节内位置（手机口径：含标题和段首缩进），只作就近匹配的参考 */
   chapterPos: number
   chapterName: string
   /** 书签原文 */
