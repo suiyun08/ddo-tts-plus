@@ -28,6 +28,29 @@
           :width="popupWidth"
           trigger="click"
           :show-arrow="false"
+          v-model:visible="bookmarkVisible"
+          popper-class="pop-cata"
+        >
+          <BookmarkPanel
+            class="popup"
+            :bookmarks="bookmarks"
+            :currentChapterIndex="chapterIndex"
+            @jump="jumpToBookmark"
+            @addCurrent="addCurrentBookmark"
+            @changed="loadBookmarks"
+          />
+          <template #reference>
+            <div class="tool-icon" :class="{ 'no-point': noPoint }">
+              <div class="iconfont"><el-icon><CollectionTag /></el-icon></div>
+              <div class="icon-text">书签</div>
+            </div>
+          </template>
+        </el-popover>
+        <el-popover
+          placement="right"
+          :width="popupWidth"
+          trigger="click"
+          :show-arrow="false"
           v-model:visible="readSettingsVisible"
           popper-class="pop-setting"
         >
@@ -77,6 +100,16 @@
         </div>
       </div>
     </div>
+    <div
+      class="selection-bookmark"
+      v-if="selectionButton"
+      :style="{ top: selectionButton.top + 'px', left: selectionButton.left + 'px' }"
+      @mousedown.prevent
+      @touchstart.stop
+      @click.stop="addSelectionBookmark"
+    >
+      加书签
+    </div>
     <div class="chapter-bar"></div>
     <div class="chapter" ref="content" :style="chapterTheme">
       <div class="content">
@@ -95,6 +128,7 @@
             :spacing="store.config.spacing"
             :fontSize="fontSize"
             :fontFamily="fontFamily"
+            :bookmarks="bookmarksByChapter.get(data.index)"
             @readedLengthChange="onReadedLengthChange"
             v-if="showContent"
           />
@@ -113,6 +147,9 @@ import API from '@api'
 import { useLoading } from '@/hooks/loading'
 import { useThrottleFn } from '@vueuse/shared'
 import { isNullOrBlank } from '@/utils/utils'
+import { CollectionTag } from '@element-plus/icons-vue'
+import BookmarkPanel from '@/components/BookmarkPanel.vue'
+import type { Bookmark } from '@/book'
 
 const content = ref()
 // loading spinner
@@ -332,10 +369,162 @@ const getContent = (index: number, reloadChapter = true, chapterPos = 0) => {
 // 章节进度跳转和计算
 const chapter = ref()
 const chapterRef = ref()
+/** 切换章节后需要跳转到的书签 */
+let pendingBookmark: Bookmark | null = null
 const toChapterPos = (pos: number) => {
   nextTick(() => {
-    if (chapterRef.value.length === 1)
-      chapterRef.value[0].scrollToReadedLength(pos)
+    if (chapterRef.value.length !== 1) return
+    const target = pendingBookmark
+    pendingBookmark = null
+    if (target) chapterRef.value[0].scrollToBookmark(target)
+    else chapterRef.value[0].scrollToReadedLength(pos)
+  })
+}
+
+// 书签
+const bookmarkVisible = ref(false)
+const bookmarks = ref<Bookmark[]>([])
+const bookmarksByChapter = computed(() => {
+  const map = new Map<number, Bookmark[]>()
+  for (const bookmark of bookmarks.value) {
+    const list = map.get(bookmark.chapterIndex) ?? []
+    list.push(bookmark)
+    map.set(bookmark.chapterIndex, list)
+  }
+  return map
+})
+const loadBookmarks = async () => {
+  const { name, author } = store.readingBook
+  if (isNullOrBlank(name)) return
+  try {
+    const res = await API.getBookmarks(name, author ?? '')
+    if (res.data.isSuccess) bookmarks.value = res.data.data
+  } catch (e) {
+    console.warn('[BookChapter]: 获取书签失败', e)
+  }
+}
+// 打开书签面板时刷新，获取手机端新加的书签
+watch(bookmarkVisible, visible => {
+  if (visible) loadBookmarks()
+})
+
+const findChapterContent = (index: number) =>
+  (chapterRef.value ?? []).find(
+    (item: { chapterIndex: number }) => item.chapterIndex === index,
+  )
+
+const jumpToBookmark = (bookmark: Bookmark) => {
+  bookmarkVisible.value = false
+  const loaded = findChapterContent(bookmark.chapterIndex)
+  if (loaded) {
+    loaded.scrollToBookmark(bookmark)
+    return
+  }
+  if (typeof catalog.value[bookmark.chapterIndex] === 'undefined') {
+    ElMessage.error('书签所在章节不存在')
+    return
+  }
+  pendingBookmark = bookmark
+  store.setContentLoading(true)
+  getContent(bookmark.chapterIndex, true, bookmark.chapterPos)
+  store.saveBookProgress()
+}
+
+const saveNewBookmark = async (bookmark: Omit<Bookmark, 'time' | 'content'>) => {
+  let note = ''
+  try {
+    const { value } = await ElMessageBox.prompt('备注（可不填）', '添加书签', {
+      confirmButtonText: '保存',
+      cancelButtonText: '取消',
+      inputPlaceholder: '写点想法…',
+      inputType: 'textarea',
+    })
+    note = value ?? ''
+  } catch {
+    return false
+  }
+  const res = await API.saveBookmark({
+    ...bookmark,
+    time: Date.now(),
+    content: note,
+  })
+  if (!res.data.isSuccess) {
+    ElMessage.error(res.data.errorMsg)
+    return false
+  }
+  ElMessage.success('已添加书签')
+  await loadBookmarks()
+  return true
+}
+
+// 选中文字后浮出「加书签」按钮
+const selectionButton = ref<{ top: number; left: number } | null>(null)
+const getContentSelection = () => {
+  const selection = window.getSelection()
+  if (!selection || selection.isCollapsed || selection.rangeCount === 0) return
+  const range = selection.getRangeAt(0)
+  if (!content.value?.contains(range.commonAncestorContainer)) return
+  if (!selection.toString().trim()) return
+  return { selection, range }
+}
+const onSelectionChange = () => {
+  const selected = getContentSelection()
+  if (!selected) {
+    selectionButton.value = null
+    return
+  }
+  const rect = selected.range.getBoundingClientRect()
+  selectionButton.value = {
+    top: Math.max(rect.top - 44, 8),
+    left: Math.min(
+      Math.max(rect.left + rect.width / 2 - 36, 8),
+      window.innerWidth - 80,
+    ),
+  }
+}
+const addSelectionBookmark = async () => {
+  const selected = getContentSelection()
+  if (!selected) return
+  const { selection, range } = selected
+  const start = range.startContainer
+  const element = (
+    start.nodeType === Node.ELEMENT_NODE ? start : start.parentElement
+  ) as Element | null
+  const chapterElement = element?.closest('[chapterindex]')
+  if (!chapterElement) return
+  const index = Number(chapterElement.getAttribute('chapterindex'))
+  const chapterContent = findChapterContent(index)
+  const pos = chapterContent?.positionOf(start, range.startOffset) ?? 0
+  const bookText = selection.toString().trim()
+  selectionButton.value = null
+  const saved = await saveNewBookmark({
+    bookName: store.readingBook.name,
+    bookAuthor: store.readingBook.author ?? '',
+    chapterIndex: index,
+    chapterPos: pos,
+    chapterName: catalog.value[index]?.title ?? '',
+    bookText,
+  })
+  if (saved) window.getSelection()?.removeAllRanges()
+}
+
+// 给当前阅读位置所在段落加书签
+const addCurrentBookmark = async () => {
+  const index = chapterIndex.value
+  const chapterContent = findChapterContent(index)
+  const paragraph = chapterContent?.paragraphAt(chapterPos.value)
+  if (!paragraph || !paragraph.text) {
+    ElMessage.warning('没有找到当前阅读位置')
+    return
+  }
+  bookmarkVisible.value = false
+  await saveNewBookmark({
+    bookName: store.readingBook.name,
+    bookAuthor: store.readingBook.author ?? '',
+    chapterIndex: index,
+    chapterPos: paragraph.start,
+    chapterName: catalog.value[index]?.title ?? '',
+    bookText: paragraph.text,
   })
 }
 
@@ -499,6 +688,8 @@ onMounted(async () => {
     store.loadWebCatalog(book).then(chapters => {
       store.setReadingBook(book)
       getContent(chapterIndex, true, chapterPos)
+      loadBookmarks()
+      document.addEventListener('selectionchange', onSelectionChange)
       window.addEventListener('keyup', handleKeyPress)
       window.addEventListener('keydown', ignoreKeyPress)
       // 兼容Safari < 14
@@ -521,6 +712,8 @@ onUnmounted(() => {
   window.removeEventListener('resize', onResize)
   // 兼容Safari < 14
   document.removeEventListener('visibilitychange', onVisibilityChange)
+  document.removeEventListener('selectionchange', onSelectionChange)
+  bookmarkVisible.value = false
   readSettingsVisible.value = false
   popCataVisible.value = false
   scrollObserver?.disconnect()
@@ -645,6 +838,20 @@ onBeforeRouteLeave(async (to, from, next) => {
         }
       }
     }
+  }
+
+  .selection-bookmark {
+    position: fixed;
+    z-index: 200;
+    padding: 6px 14px;
+    border-radius: 16px;
+    background: #ed4259;
+    color: #fff;
+    font-size: 13px;
+    line-height: 20px;
+    cursor: pointer;
+    user-select: none;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
   }
 
   .chapter {

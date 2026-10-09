@@ -8,6 +8,7 @@ import type {
   Book,
   BookChapter,
   BookProgress,
+  Bookmark,
   SeachBook,
 } from '@/book'
 import type { Source } from '@/source'
@@ -120,6 +121,19 @@ const saveBook = (book: BaseBook) =>
 const deleteBook = (book: BaseBook) =>
   ajax.post<LeagdoApiResponse<string>>('deleteBook', book)
 
+// 书签API
+const getBookmarks = (name: string, author: string) =>
+  ajax.get<LeagdoApiResponse<Bookmark[]>>(
+    'getBookmarks?name=' +
+      encodeURIComponent(name) +
+      '&author=' +
+      encodeURIComponent(author),
+  )
+const saveBookmark = (bookmark: Partial<Bookmark>) =>
+  ajax.post<LeagdoApiResponse<Bookmark>>('saveBookmark', bookmark)
+const deleteBookmark = (bookmark: Bookmark) =>
+  ajax.post<LeagdoApiResponse<string>>('deleteBookmark', bookmark)
+
 const isBookSource = /bookSource/i.test(location.href)
 
 // 源编辑API
@@ -214,6 +228,9 @@ export default {
   search,
   saveBook,
   deleteBook,
+  getBookmarks,
+  saveBookmark,
+  deleteBookmark,
 
   getSources,
   saveSources,

@@ -107,3 +107,19 @@ export type BookChapter = {
   endFragmentId?: string //EPUB书籍下一章节的fragmentId
   variable?: string //变量
 }
+
+/** 书签，与手机端 bookmarks 表一致 */
+export type Bookmark = {
+  /** 创建时间，同时是主键 */
+  time: number
+  bookName: string
+  bookAuthor: string
+  chapterIndex: number
+  /** 章节内位置。手机端含标题和段首缩进，网页端不含，只作就近匹配的参考 */
+  chapterPos: number
+  chapterName: string
+  /** 书签原文 */
+  bookText: string
+  /** 备注 */
+  content: string
+}

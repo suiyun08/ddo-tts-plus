@@ -98,6 +98,7 @@ object ReadBook : CoroutineScope by MainScope() {
     fun resetData(book: Book) {
         releaseAndCancel()
         ReadBook.book = book
+        BookmarkMarker.observe(book)
         readRecord.bookName = book.name
         readRecord.readTime = appDb.readRecordDao.getReadTime(book.name) ?: 0
         chapterSize = appDb.bookChapterDao.getChapterCount(book.bookUrl)
@@ -128,6 +129,7 @@ object ReadBook : CoroutineScope by MainScope() {
     fun upData(book: Book) {
         releaseAndCancel()
         ReadBook.book = book
+        BookmarkMarker.observe(book)
         chapterSize = appDb.bookChapterDao.getChapterCount(book.bookUrl)
         simulatedChapterSize = if (book.readSimulating()) {
             book.simulatedTotalChapterNum()

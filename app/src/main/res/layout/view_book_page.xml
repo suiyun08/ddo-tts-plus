@@ -140,4 +140,17 @@
         android:layout_height="wrap_content"
         app:layout_constraintBottom_toBottomOf="parent" />
 
+
+    <ImageView
+        android:id="@+id/iv_page_bookmark"
+        android:layout_width="10dp"
+        android:layout_height="18dp"
+        android:layout_marginRight="3dp"
+        android:contentDescription="@string/bookmark"
+        android:src="@drawable/ic_page_bookmark_ribbon"
+        android:visibility="gone"
+        app:layout_constraintRight_toRightOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/vw_status_bar"
+        tools:ignore="RtlHardcoded" />
+
 </androidx.constraintlayout.widget.ConstraintLayout>

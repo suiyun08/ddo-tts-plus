@@ -11,6 +11,7 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isGone
 import androidx.core.view.isInvisible
+import androidx.core.view.isVisible
 import io.legado.app.R
 import io.legado.app.constant.AppConst.timeFormat
 import io.legado.app.data.entities.Bookmark
@@ -18,6 +19,8 @@ import io.legado.app.databinding.ViewBookPageBinding
 import io.legado.app.help.config.AppConfig
 import io.legado.app.help.config.ReadBookConfig
 import io.legado.app.help.config.ReadTipConfig
+import io.legado.app.lib.theme.ThemeStore
+import io.legado.app.model.BookmarkMarker
 import io.legado.app.model.ReadBook
 import io.legado.app.ui.book.read.ReadBookActivity
 import io.legado.app.ui.book.read.page.entities.TextLine
@@ -326,6 +329,18 @@ class PageView(context: Context) : FrameLayout(context) {
             resetPageOffset()
         }
         binding.contentTextView.setContent(textPage)
+        upPageBookmark(textPage)
+    }
+
+    /**
+     * 整页书签角标
+     */
+    private fun upPageBookmark(textPage: TextPage) {
+        val show = BookmarkMarker.hasPageMark(textPage)
+        binding.ivPageBookmark.isVisible = show
+        if (show) {
+            binding.ivPageBookmark.setColorFilter(ThemeStore.accentColor)
+        }
     }
 
     fun invalidateContentView() {

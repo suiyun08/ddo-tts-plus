@@ -10,6 +10,7 @@ import io.legado.app.help.book.isImage
 import io.legado.app.help.config.AppConfig
 import io.legado.app.help.config.ReadBookConfig
 import io.legado.app.lib.theme.ThemeStore
+import io.legado.app.model.BookmarkMarker
 import io.legado.app.model.ReadBook
 import io.legado.app.ui.book.read.page.ContentTextView
 import io.legado.app.ui.book.read.page.entities.TextPage.Companion.emptyTextPage
@@ -173,6 +174,39 @@ data class TextLine(
         
         if (ReadBookConfig.underline && !isImage && ReadBook.book?.isImage != true) {
             drawUnderline(canvas)
+        }
+
+        drawBookmarkUnderline(canvas)
+    }
+
+    /**
+     * 书签文字画虚线下划线
+     */
+    private fun drawBookmarkUnderline(canvas: Canvas) {
+        if (isImage || charSize == 0 || textPage.isMsgPage) return
+        val ranges = BookmarkMarker.getMarks(textPage.textChapter)?.ranges ?: return
+        val lineStartPos = chapterPosition
+        val lineEndPos = chapterPosition + charSize
+        val lineY = height - 1.dpToPx()
+        for (range in ranges) {
+            if (range.last < lineStartPos || range.first >= lineEndPos) continue
+            var left = Float.MAX_VALUE
+            var right = Float.MIN_VALUE
+            var offset = 0
+            for (i in columns.indices) {
+                val column = columns[i] as? TextColumn ?: continue
+                val pos = lineStartPos + offset
+                offset += column.charData.length
+                if (pos in range && column.charData.isNotBlank()) {
+                    if (column.start < left) left = column.start
+                    if (column.end > right) right = column.end
+                }
+            }
+            if (left < right) {
+                val paint = BookmarkMarker.underlinePaint
+                paint.color = BookmarkMarker.underlineColor()
+                canvas.drawLine(left, lineY, right, lineY, paint)
+            }
         }
     }
 

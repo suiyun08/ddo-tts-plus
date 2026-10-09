@@ -22,6 +22,14 @@ import { isLegadoUrl } from '@/utils/utils'
 import API from '@api'
 import jump from '@/plugins/jump'
 import type { webReadConfig } from '@/web'
+import type { Bookmark } from '@/book'
+import {
+  MARK_CLASS,
+  applyMarks,
+  buildTextIndex,
+  clearMarks,
+  locateBookmark,
+} from '@/utils/bookmark'
 
 const store = useBookStore()
 const readWidth = computed(() => store.config.readWidth)
@@ -35,6 +43,7 @@ const props = defineProps<{
   spacing: webReadConfig['spacing']
   fontFamily: string
   fontSize: string
+  bookmarks?: Bookmark[]
 }>()
 
 const imgPattern = /<img[^>]*src=['"]([^'"]*(?:['"][^>]+\})?)['"][^>]*>/g
@@ -125,8 +134,93 @@ const scrollToReadedLength = (length: number) => {
     })
   })
 }
+
+// 书签：虚线标注、跳转、计算选区位置
+/** 按章节位置排序的段落元素（v-for 的 ref 数组不保证顺序） */
+const sortedParagraphs = () =>
+  [...(paragraphRef.value ?? [])].sort(
+    (a, b) =>
+      Number((a as HTMLElement).dataset.chapterpos) -
+      Number((b as HTMLElement).dataset.chapterpos),
+  ) as HTMLElement[]
+/** 各段落在网页口径下的起始位置 */
+const paragraphStarts = computed(() =>
+  props.contents.map(
+    (content, index) => chapterPos.value[index] - calculateWordCount(content),
+  ),
+)
+const buildIndex = () => buildTextIndex(sortedParagraphs(), paragraphStarts.value)
+
+const renderMarks = () => {
+  const paragraphs = sortedParagraphs()
+  paragraphs.forEach(clearMarks)
+  const bookmarks = props.bookmarks ?? []
+  if (bookmarks.length === 0) return
+  try {
+    applyMarks(buildIndex(), bookmarks)
+  } catch (e) {
+    console.warn('[ChapterContent]: 书签标注失败', e)
+  }
+}
+onMounted(renderMarks)
+onUpdated(renderMarks)
+watch(() => props.bookmarks, () => nextTick(renderMarks), { deep: true })
+
+/** 跳转到书签所在位置，找不到原文时按位置跳转 */
+const scrollToBookmark = (bookmark: Bookmark) => {
+  const index = buildIndex()
+  const located = locateBookmark(index, bookmark, true)
+  if (!located) {
+    scrollToReadedLength(bookmark.chapterPos)
+    return
+  }
+  const point = index.points[located[0]]
+  const mark = point.node.parentElement?.closest('.' + MARK_CLASS) as
+    | HTMLElement
+    | null
+  const target = mark ?? sortedParagraphs()[point.paragraph]
+  nextTick(() => {
+    jump(target, { duration: 0, offset: -window.innerHeight / 3 })
+    if (mark) {
+      mark.classList.add('flash')
+      setTimeout(() => mark.classList.remove('flash'), 1600)
+    }
+  })
+}
+
+/** 计算选区起点在网页口径下的章节位置，不在本章正文内返回 undefined */
+const positionOf = (node: Node, offset: number) => {
+  const paragraphs = sortedParagraphs()
+  const paragraph = paragraphs.findIndex(element => element.contains(node))
+  if (paragraph < 0) return
+  const element = paragraphs[paragraph]
+  const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT)
+  let length = 0
+  let text = walker.nextNode()
+  while (text && text !== node) {
+    length += (text as Text).data.length
+    text = walker.nextNode()
+  }
+  if (node.nodeType === Node.TEXT_NODE) length += offset
+  return paragraphStarts.value[paragraph] + length
+}
+
+/** 当前阅读位置所在段落的纯文本和起始位置 */
+const paragraphAt = (length: number) => {
+  let index = chapterPos.value.findIndex(wordCount => wordCount >= length)
+  if (index < 0) index = 0
+  const content = props.contents[index]
+  if (content === undefined) return
+  const text = content.replace(/<[^>]+>/g, '').trim()
+  return { text, start: paragraphStarts.value[index] }
+}
+
 defineExpose({
+  chapterIndex: props.chapterIndex,
   scrollToReadedLength,
+  scrollToBookmark,
+  positionOf,
+  paragraphAt,
 })
 let intersectionObserver: IntersectionObserver | null = null
 const emit = defineEmits(['readedLengthChange'])
@@ -180,6 +274,18 @@ p {
 
   :deep(img) {
     height: 1em;
+  }
+
+  :deep(.bookmark-mark) {
+    text-decoration: underline dashed;
+    text-decoration-color: #ed4259;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 0.3em;
+    transition: background-color 0.3s;
+  }
+
+  :deep(.bookmark-mark.flash) {
+    background-color: rgba(237, 66, 89, 0.18);
   }
 }
 
