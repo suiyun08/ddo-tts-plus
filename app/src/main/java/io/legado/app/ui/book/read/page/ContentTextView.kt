@@ -9,7 +9,9 @@ import android.view.View
 import io.legado.app.R
 import io.legado.app.data.entities.Bookmark
 import io.legado.app.help.config.AppConfig
+import io.legado.app.model.BookmarkMarker
 import io.legado.app.model.ReadBook
+import io.legado.app.ui.book.read.BookmarkPopup
 import io.legado.app.ui.book.read.page.delegate.PageDelegate
 import io.legado.app.ui.book.read.page.entities.TextLine
 import io.legado.app.ui.book.read.page.entities.TextPage
@@ -232,8 +234,12 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
     @Suppress("UNUSED_ANONYMOUS_PARAMETER")
     fun click(x: Float, y: Float): Boolean {
         var handled = false
-        touch(x, y) { _, textPos, textPage, textLine, column ->
+        touch(x, y) { relativeOffset, textPos, textPage, textLine, column ->
             when (column) {
+                is TextColumn -> {
+                    handled = showBookmarkPopup(x, relativeOffset, textPage, textLine, column)
+                }
+
                 is ButtonColumn -> {
                     context.toastOnUi("Button Pressed!")
                     handled = true
@@ -251,6 +257,38 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
             }
         }
         return handled
+    }
+
+    private val bookmarkPopup by lazy { activity?.let { BookmarkPopup(it) } }
+
+    /**
+     * 点到书签文字时显示书签浮窗
+     */
+    private fun showBookmarkPopup(
+        x: Float,
+        relativeOffset: Float,
+        textPage: TextPage,
+        textLine: TextLine,
+        column: TextColumn
+    ): Boolean {
+        if (textPage.isMsgPage || column.charData.isBlank()) return false
+        var offset = 0
+        for (lineColumn in textLine.columns) {
+            if (lineColumn === column) break
+            if (lineColumn is TextColumn) offset += lineColumn.charData.length
+        }
+        val chapterPos = textLine.chapterPosition + offset
+        val bookmarks = BookmarkMarker.bookmarksAt(textPage.textChapter, chapterPos)
+        if (bookmarks.isEmpty()) return false
+        val popup = bookmarkPopup ?: return false
+        popup.show(
+            this,
+            bookmarks,
+            x,
+            textLine.lineTop + relativeOffset,
+            textLine.lineBottom + relativeOffset
+        )
+        return true
     }
 
     /**

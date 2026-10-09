@@ -3,7 +3,7 @@
     class="chapter-wrapper"
     :style="bodyTheme"
     :class="{ night: isNight, day: !isNight }"
-    @click="showToolBar = !showToolBar"
+    @click="onWrapperClick"
   >
     <div class="tool-bar" :style="leftBarTheme">
       <div class="tools">
@@ -36,8 +36,9 @@
             :bookmarks="bookmarks"
             :currentChapterIndex="chapterIndex"
             @jump="jumpToBookmark"
+            @edit="editBookmark"
+            @remove="removeBookmark"
             @addCurrent="addCurrentBookmark"
-            @changed="loadBookmarks"
           />
           <template #reference>
             <div class="tool-icon" :class="{ 'no-point': noPoint }">
@@ -110,8 +111,22 @@
     >
       加书签
     </div>
+    <BookmarkPopover
+      v-if="bookmarkPopover"
+      v-bind="bookmarkPopover"
+      :background="popupColor"
+      @close="bookmarkPopover = null"
+      @edit="editBookmark"
+      @remove="removeBookmark"
+    />
+    <BookmarkEditor ref="bookmarkEditor" @changed="loadBookmarks" />
     <div class="chapter-bar"></div>
-    <div class="chapter" ref="content" :style="chapterTheme">
+    <div
+      class="chapter"
+      ref="content"
+      :style="chapterTheme"
+      @click="onContentClick"
+    >
       <div class="content">
         <div class="top-bar" ref="top"></div>
         <div
@@ -149,6 +164,9 @@ import { useThrottleFn } from '@vueuse/shared'
 import { isNullOrBlank } from '@/utils/utils'
 import { CollectionTag } from '@element-plus/icons-vue'
 import BookmarkPanel from '@/components/BookmarkPanel.vue'
+import BookmarkPopover from '@/components/BookmarkPopover.vue'
+import BookmarkEditor from '@/components/BookmarkEditor.vue'
+import { caretFromPoint } from '@/utils/bookmark'
 import type { Bookmark } from '@/book'
 
 const content = ref()
@@ -528,6 +546,65 @@ const addCurrentBookmark = async () => {
   })
 }
 
+// 书签编辑、删除（面板和浮窗共用）
+const bookmarkEditor = ref<InstanceType<typeof BookmarkEditor>>()
+const editBookmark = (bookmark: Bookmark) => {
+  bookmarkPopover.value = null
+  bookmarkVisible.value = false
+  bookmarkEditor.value?.edit(bookmark)
+}
+const removeBookmark = (bookmark: Bookmark) => {
+  bookmarkPopover.value = null
+  bookmarkEditor.value?.remove(bookmark)
+}
+
+// 单击正文书签文字显示浮窗；点关闭按钮、空白处或滚动页面时关闭
+const bookmarkPopover = ref<{
+  bookmarks: Bookmark[]
+  x: number
+  lineTop: number
+  lineBottom: number
+} | null>(null)
+const onContentClick = (event: MouseEvent) => {
+  const mark = (event.target as Element | null)?.closest?.('.bookmark-mark')
+  if (!mark) return
+  // 正在选中文字时不弹出，避免与「选中文字加书签」冲突
+  const selection = window.getSelection()
+  if (selection && !selection.isCollapsed && selection.toString().trim()) return
+  const chapterElement = mark.closest('[chapterindex]')
+  const caret = caretFromPoint(event.clientX, event.clientY)
+  if (!chapterElement || !caret) return
+  const index = Number(chapterElement.getAttribute('chapterindex'))
+  const list: Bookmark[] =
+    findChapterContent(index)?.bookmarksAt(caret.node, caret.offset) ?? []
+  if (list.length === 0) return
+  event.stopPropagation()
+  // 书签跨行时取被点击的那一行
+  const rects = Array.from(mark.getClientRects())
+  const rect =
+    rects.find(r => event.clientY >= r.top && event.clientY <= r.bottom) ??
+    mark.getBoundingClientRect()
+  bookmarkPopover.value = {
+    bookmarks: list,
+    x: event.clientX,
+    lineTop: rect.top,
+    lineBottom: rect.bottom,
+  }
+}
+const onWrapperClick = () => {
+  if (bookmarkPopover.value) {
+    bookmarkPopover.value = null
+    return
+  }
+  showToolBar.value = !showToolBar.value
+}
+const closeBookmarkPopover = () => {
+  bookmarkPopover.value = null
+}
+const onEscape = (event: KeyboardEvent) => {
+  if (event.key === 'Escape') closeBookmarkPopover()
+}
+
 // 60秒保存一次进度
 const saveBookProgressThrottle = useThrottleFn(
   () => store.saveBookProgress(),
@@ -690,6 +767,8 @@ onMounted(async () => {
       getContent(chapterIndex, true, chapterPos)
       loadBookmarks()
       document.addEventListener('selectionchange', onSelectionChange)
+      window.addEventListener('scroll', closeBookmarkPopover, { passive: true })
+      window.addEventListener('keydown', onEscape)
       window.addEventListener('keyup', handleKeyPress)
       window.addEventListener('keydown', ignoreKeyPress)
       // 兼容Safari < 14
@@ -713,6 +792,8 @@ onUnmounted(() => {
   // 兼容Safari < 14
   document.removeEventListener('visibilitychange', onVisibilityChange)
   document.removeEventListener('selectionchange', onSelectionChange)
+  window.removeEventListener('scroll', closeBookmarkPopover)
+  window.removeEventListener('keydown', onEscape)
   bookmarkVisible.value = false
   readSettingsVisible.value = false
   popCataVisible.value = false
@@ -901,6 +982,10 @@ onBeforeRouteLeave(async (to, from, next) => {
 }
 
 .night {
+  :deep(.bookmark-popover) {
+    color: #aaa;
+  }
+
   :deep(.popup) {
     box-shadow:
       0 2px 4px rgba(0, 0, 0, 0.48),

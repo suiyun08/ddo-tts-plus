@@ -36,11 +36,13 @@ object BookmarkMarker {
     private const val PAGE_MARK_KEY_LENGTH = 30
 
     class ChapterMarks(
-        /** 需要画下划线的章节位置区间（闭区间） */
-        val ranges: List<IntRange>,
+        /** 需要画下划线的章节位置区间（闭区间）及对应书签 */
+        val marks: List<Pair<IntRange, Bookmark>>,
         /** 整页书签的章节位置 */
         val pagePositions: List<Int>,
-    )
+    ) {
+        val ranges: List<IntRange> = marks.map { it.first }
+    }
 
     private class Cache(
         val chapter: WeakReference<TextChapter>,
@@ -157,7 +159,7 @@ object BookmarkMarker {
             }
         }
         val normalized = text.toString()
-        val ranges = arrayListOf<IntRange>()
+        val marks = arrayListOf<Pair<IntRange, Bookmark>>()
         val pagePositions = arrayListOf<Int>()
         for (bookmark in chapterMarks) {
             val key = bookmark.bookText.filterNot { it.isWhitespace() }
@@ -170,10 +172,18 @@ object BookmarkMarker {
             }
             val best = findNearest(normalized, posMap, key, bookmark.chapterPos)
             if (best >= 0) {
-                ranges.add(posMap[best]..posMap[best + key.length - 1])
+                marks.add(posMap[best]..posMap[best + key.length - 1] to bookmark)
             }
         }
-        return ChapterMarks(ranges, pagePositions)
+        return ChapterMarks(marks, pagePositions)
+    }
+
+    /**
+     * 章节位置上的书签（点击正文时查询）
+     */
+    fun bookmarksAt(chapter: TextChapter, chapterPos: Int): List<Bookmark> {
+        val marks = getMarks(chapter) ?: return emptyList()
+        return marks.marks.filter { chapterPos in it.first }.map { it.second }
     }
 
     /**

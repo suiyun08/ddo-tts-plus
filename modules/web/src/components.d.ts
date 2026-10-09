@@ -8,7 +8,9 @@ export {}
 declare module 'vue' {
   export interface GlobalComponents {
     BookItems: typeof import('./components/BookItems.vue')['default']
+    BookmarkEditor: typeof import('./components/BookmarkEditor.vue')['default']
     BookmarkPanel: typeof import('./components/BookmarkPanel.vue')['default']
+    BookmarkPopover: typeof import('./components/BookmarkPopover.vue')['default']
     CatalogItem: typeof import('./components/CatalogItem.vue')['default']
     ChapterContent: typeof import('./components/ChapterContent.vue')['default']
     ElButton: typeof import('element-plus/es')['ElButton']

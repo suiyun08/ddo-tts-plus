@@ -156,3 +156,28 @@ export const applyMarks = (
     }
   })
 }
+
+export const formatBookmarkTime = (time: number) => {
+  const date = new Date(time)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
+/** 点击坐标处的文本节点和偏移（caretPositionFromPoint 为标准接口，caretRangeFromPoint 兼容旧版 Safari/Chrome） */
+type CaretDocument = Document & {
+  caretPositionFromPoint?: (
+    x: number,
+    y: number,
+  ) => { offsetNode: Node; offset: number } | null
+  caretRangeFromPoint?: (x: number, y: number) => Range | null
+}
+export const caretFromPoint = (
+  x: number,
+  y: number,
+): { node: Node; offset: number } | undefined => {
+  const doc = document as CaretDocument
+  const position = doc.caretPositionFromPoint?.(x, y)
+  if (position) return { node: position.offsetNode, offset: position.offset }
+  const range = doc.caretRangeFromPoint?.(x, y)
+  if (range) return { node: range.startContainer, offset: range.startOffset }
+}

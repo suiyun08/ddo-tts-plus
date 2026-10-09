@@ -21,8 +21,8 @@
         <div class="text">{{ bookmark.bookText }}</div>
         <div class="note" v-if="bookmark.content">{{ bookmark.content }}</div>
         <div class="actions" @click.stop>
-          <el-button size="small" text @click="openEdit(bookmark)">编辑</el-button>
-          <el-button size="small" text type="danger" @click="remove(bookmark)">
+          <el-button size="small" text @click="emit('edit', bookmark)">编辑</el-button>
+          <el-button size="small" text type="danger" @click="emit('remove', bookmark)">
             删除
           </el-button>
         </div>
@@ -31,41 +31,13 @@
     <div class="empty" v-else>
       还没有书签。选中正文文字后点「加书签」，或点上方按钮给当前位置加书签。
     </div>
-
-    <el-dialog
-      v-model="editVisible"
-      title="编辑书签"
-      width="min(480px, 92vw)"
-      append-to-body
-    >
-      <el-form label-position="top">
-        <el-form-item label="书签原文">
-          <el-input
-            v-model="editing.bookText"
-            type="textarea"
-            :autosize="{ minRows: 2, maxRows: 6 }"
-          />
-        </el-form-item>
-        <el-form-item label="备注">
-          <el-input
-            v-model="editing.content"
-            type="textarea"
-            :autosize="{ minRows: 2, maxRows: 6 }"
-          />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="editVisible = false">取消</el-button>
-        <el-button type="primary" @click="saveEdit">保存</el-button>
-      </template>
-    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import API from '@api'
 import settings from '../config/themeConfig'
 import type { Bookmark } from '@/book'
+import { formatBookmarkTime as formatTime } from '@/utils/bookmark'
 
 defineProps<{
   bookmarks: Bookmark[]
@@ -73,56 +45,15 @@ defineProps<{
 }>()
 const emit = defineEmits<{
   jump: [bookmark: Bookmark]
+  edit: [bookmark: Bookmark]
+  remove: [bookmark: Bookmark]
   addCurrent: []
-  changed: []
 }>()
 
 const store = useBookStore()
 const popupTheme = computed(() => ({
   background: settings.themes[store.theme].popup,
 }))
-
-const formatTime = (time: number) => {
-  const date = new Date(time)
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
-}
-
-const editVisible = ref(false)
-const editing = ref<Bookmark>({} as Bookmark)
-const openEdit = (bookmark: Bookmark) => {
-  editing.value = { ...bookmark }
-  editVisible.value = true
-}
-const saveEdit = async () => {
-  const res = await API.saveBookmark(editing.value)
-  if (!res.data.isSuccess) {
-    ElMessage.error(res.data.errorMsg)
-    return
-  }
-  editVisible.value = false
-  ElMessage.success('已保存')
-  emit('changed')
-}
-
-const remove = async (bookmark: Bookmark) => {
-  try {
-    await ElMessageBox.confirm('确定删除这个书签？', '删除书签', {
-      confirmButtonText: '删除',
-      cancelButtonText: '取消',
-      type: 'warning',
-    })
-  } catch {
-    return
-  }
-  const res = await API.deleteBookmark(bookmark)
-  if (!res.data.isSuccess) {
-    ElMessage.error(res.data.errorMsg)
-    return
-  }
-  ElMessage.success('已删除')
-  emit('changed')
-}
 </script>
 
 <style lang="scss" scoped>

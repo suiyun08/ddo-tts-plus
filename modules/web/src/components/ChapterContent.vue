@@ -205,6 +205,23 @@ const positionOf = (node: Node, offset: number) => {
   return paragraphStarts.value[paragraph] + length
 }
 
+/** 某个文本位置上的书签（点击正文时查询），光标在字前或字后都算点中该字 */
+const bookmarksAt = (node: Node, offset: number) => {
+  const bookmarks = props.bookmarks ?? []
+  if (bookmarks.length === 0) return []
+  const index = buildIndex()
+  const hits = [offset, offset - 1]
+    .map(o => index.points.findIndex(p => p.node === node && p.offset === o))
+    .filter(i => i >= 0)
+  if (hits.length === 0) return []
+  return bookmarks.filter(bookmark => {
+    const located = locateBookmark(index, bookmark)
+    if (!located) return false
+    const [start, length] = located
+    return hits.some(i => i >= start && i < start + length)
+  })
+}
+
 /** 当前阅读位置所在段落的纯文本和起始位置 */
 const paragraphAt = (length: number) => {
   let index = chapterPos.value.findIndex(wordCount => wordCount >= length)
@@ -221,6 +238,7 @@ defineExpose({
   scrollToBookmark,
   positionOf,
   paragraphAt,
+  bookmarksAt,
 })
 let intersectionObserver: IntersectionObserver | null = null
 const emit = defineEmits(['readedLengthChange'])
@@ -277,6 +295,7 @@ p {
   }
 
   :deep(.bookmark-mark) {
+    cursor: pointer;
     text-decoration: underline dashed;
     text-decoration-color: #ed4259;
     text-decoration-thickness: 1px;
