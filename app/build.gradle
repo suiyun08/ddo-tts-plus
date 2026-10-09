@@ -77,12 +77,9 @@ android {
             if (project.hasProperty("RELEASE_STORE_FILE")) {
                 signingConfig signingConfigs.myConfig
             }
-            applicationIdSuffix '.release'
-            if (getApplicationIdSuffix() == '.releaseA') {
-                manifestPlaceholders.put("app_name", "@string/app_name_a")
-            } else {
-                manifestPlaceholders.put("app_name", "@string/app_name")
-            }
+            // ddo-tts-plus: 独立包名，可与原版 ddo-tts / 阅读 共存安装
+            applicationIdSuffix '.ddoplus'
+            manifestPlaceholders.put("app_name", "@string/app_name_plus")
 
             minifyEnabled true
             shrinkResources = true

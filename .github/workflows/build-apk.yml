@@ -1,0 +1,71 @@
+name: Build APK
+
+# ddo-tts-plus 云端打包：先构建网页端并放进 assets，再打包 APK
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '**.md'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+          run_install: false
+
+      - name: Build web and copy into assets
+        working-directory: modules/web
+        run: |
+          pnpm i --no-frozen-lockfile
+          pnpm build
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: 17
+
+      - name: Release Apk Sign
+        run: |
+          # 公开测试签名（与上游测试版相同），后续可改为仓库 secrets 中的私有签名
+          cp $GITHUB_WORKSPACE/.github/workflows/legado.jks $GITHUB_WORKSPACE/app/legado.jks
+          sed '$a\RELEASE_STORE_FILE=./legado.jks'          $GITHUB_WORKSPACE/gradle.properties -i
+          sed '$a\RELEASE_KEY_ALIAS=legado'                 $GITHUB_WORKSPACE/gradle.properties -i
+          sed '$a\RELEASE_STORE_PASSWORD=gedoor_legado'     $GITHUB_WORKSPACE/gradle.properties -i
+          sed '$a\RELEASE_KEY_PASSWORD=gedoor_legado'       $GITHUB_WORKSPACE/gradle.properties -i
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build With Gradle
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleAppRelease --build-cache --parallel --daemon --warning-mode all
+          mkdir -p $GITHUB_WORKSPACE/apk
+          for file in $GITHUB_WORKSPACE/app/build/outputs/apk/*/*/*.apk; do
+            mv "$file" $GITHUB_WORKSPACE/apk/ddo-tts-plus_$(date -d "8 hour" -u +%y%m%d%H%M)_${GITHUB_SHA::7}.apk
+          done
+
+      - name: Upload App To Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ddo-tts-plus-apk
+          if-no-files-found: error
+          path: ${{ github.workspace }}/apk/*.apk
