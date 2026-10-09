@@ -25,12 +25,15 @@ import kotlin.math.abs
  * 书签不记录文字长度，且手机与网页的章节位置口径不同（手机含标题和段首缩进），
  * 因此按书签原文在正文中匹配定位：去掉空白后匹配，多处命中时取离书签位置最近的一处。
  * - 选中文字的书签：返回其在章节中的位置区间，正文画虚线下划线
- * - 整页书签（原文超过 [PAGE_MARK_MIN_LENGTH]）：不画线，书签所在页显示角标
+ * - 整页书签（原文超过 [PAGE_MARK_MIN_LENGTH]）：不画线，按原文开头定位，开头所在页显示角标
  */
 object BookmarkMarker {
 
     /** 去空白后超过这个长度的书签视为整页书签 */
     private const val PAGE_MARK_MIN_LENGTH = 200
+
+    /** 整页书签只用原文开头这些字定位，与网页端跳转规则一致 */
+    private const val PAGE_MARK_KEY_LENGTH = 30
 
     class ChapterMarks(
         /** 需要画下划线的章节位置区间（闭区间） */
@@ -160,25 +163,35 @@ object BookmarkMarker {
             val key = bookmark.bookText.filterNot { it.isWhitespace() }
             if (key.isEmpty()) continue
             if (key.length > PAGE_MARK_MIN_LENGTH) {
-                pagePositions.add(bookmark.chapterPos)
+                // 整页书签按原文开头定位，匹配不到再退回记录的位置
+                val best = findNearest(normalized, posMap, key.take(PAGE_MARK_KEY_LENGTH), bookmark.chapterPos)
+                pagePositions.add(if (best >= 0) posMap[best] else bookmark.chapterPos)
                 continue
             }
-            var best = -1
-            var bestDistance = Int.MAX_VALUE
-            var index = normalized.indexOf(key)
-            while (index >= 0) {
-                val distance = abs(posMap[index] - bookmark.chapterPos)
-                if (distance < bestDistance) {
-                    best = index
-                    bestDistance = distance
-                }
-                index = normalized.indexOf(key, index + 1)
-            }
+            val best = findNearest(normalized, posMap, key, bookmark.chapterPos)
             if (best >= 0) {
                 ranges.add(posMap[best]..posMap[best + key.length - 1])
             }
         }
         return ChapterMarks(ranges, pagePositions)
+    }
+
+    /**
+     * 在去空白的章节文本中查找 key，多处命中时返回离 hintPos 最近的下标，找不到返回 -1
+     */
+    private fun findNearest(text: String, posMap: List<Int>, key: String, hintPos: Int): Int {
+        var best = -1
+        var bestDistance = Int.MAX_VALUE
+        var index = text.indexOf(key)
+        while (index >= 0) {
+            val distance = abs(posMap[index] - hintPos)
+            if (distance < bestDistance) {
+                best = index
+                bestDistance = distance
+            }
+            index = text.indexOf(key, index + 1)
+        }
+        return best
     }
 
 }
