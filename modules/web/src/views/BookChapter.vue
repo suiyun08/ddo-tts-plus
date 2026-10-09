@@ -166,7 +166,7 @@ import { CollectionTag } from '@element-plus/icons-vue'
 import BookmarkPanel from '@/components/BookmarkPanel.vue'
 import BookmarkPopover from '@/components/BookmarkPopover.vue'
 import BookmarkEditor from '@/components/BookmarkEditor.vue'
-import { caretFromPoint } from '@/utils/bookmark'
+import { caretFromPoint, firstSentence } from '@/utils/bookmark'
 import type { Bookmark } from '@/book'
 
 const content = ref()
@@ -526,7 +526,7 @@ const addSelectionBookmark = async () => {
   if (saved) window.getSelection()?.removeAllRanges()
 }
 
-// 给当前阅读位置所在段落加书签
+// 给当前阅读位置加书签，只记录所在段落的第一句
 const addCurrentBookmark = async () => {
   const index = chapterIndex.value
   const chapterContent = findChapterContent(index)
@@ -542,7 +542,7 @@ const addCurrentBookmark = async () => {
     chapterIndex: index,
     chapterPos: paragraph.start,
     chapterName: catalog.value[index]?.title ?? '',
-    bookText: paragraph.text,
+    bookText: firstSentence(paragraph.text),
   })
 }
 

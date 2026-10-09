@@ -58,6 +58,7 @@ import io.legado.app.lib.dialogs.alert
 import io.legado.app.lib.dialogs.selector
 import io.legado.app.lib.theme.accentColor
 import io.legado.app.model.ReadAloud
+import io.legado.app.model.BookmarkMarker
 import io.legado.app.model.ReadBook
 import io.legado.app.model.analyzeRule.AnalyzeRule
 import io.legado.app.model.analyzeRule.AnalyzeRule.Companion.setChapter
@@ -1546,11 +1547,15 @@ class ReadBookActivity : BaseReadBookActivity(),
         val book = ReadBook.book
         val page = ReadBook.curTextChapter?.getPage(ReadBook.durPageIndex)
         if (book != null && page != null) {
+            // 只记录当前页正文的第一句，正文中标出一小段虚线
+            val firstLine = page.lines.firstOrNull { !it.isTitle && it.text.isNotBlank() }
+            val bodyText = page.lines.filterNot { it.isTitle }
+                .joinToString("") { it.text + if (it.isParagraphEnd) "\n" else "" }
             val bookmark = book.createBookMark().apply {
                 chapterIndex = ReadBook.durChapterIndex
-                chapterPos = ReadBook.durChapterPos
+                chapterPos = firstLine?.chapterPosition ?: ReadBook.durChapterPos
                 chapterName = page.title
-                bookText = page.text.trim()
+                bookText = BookmarkMarker.firstSentence(bodyText.ifBlank { page.text })
             }
             showDialogFragment(BookmarkDialog(bookmark))
         }

@@ -2,21 +2,52 @@ import type { Bookmark } from '@/book'
 
 /**
  * 书签定位工具，规则与手机端 BookmarkMarker 一致：
- * 去掉空白后按书签原文在正文中匹配，多处命中时取离书签位置最近的一处。
+ * 去掉空白后按书签原文在正文中匹配，多处命中时取离书签位置最近的一处，匹配到的文字画虚线。
  * 手机和网页的章节位置口径不同（手机含标题和段首缩进），位置只作就近参考。
+ * 旧版菜单书签记录的是整页原文（超过 LONG_TEXT_LENGTH），只标出其第一句。
  */
 
-/** 去空白后超过这个长度的书签视为整页书签，不画下划线 */
-export const PAGE_MARK_MIN_LENGTH = 200
-/** 整页书签跳转时只用开头这些字定位 */
-const JUMP_KEY_LENGTH = 30
+/** 去空白后超过这个长度的书签（旧版整页书签）只标出第一句 */
+const LONG_TEXT_LENGTH = 200
+/** 第一句最多取这么多字 */
+const SENTENCE_MAX_LENGTH = 50
+const SENTENCE_ENDS = '。！？!?…；;'
+const CLOSING_QUOTES = '”’」』"\'）)'
 
 export const MARK_CLASS = 'bookmark-mark'
 
 export const normalizeText = (text: string) => text.replace(/\s+/g, '')
 
-export const isPageBookmark = (bookmark: Bookmark) =>
-  normalizeText(bookmark.bookText).length > PAGE_MARK_MIN_LENGTH
+/**
+ * 取第一句：到第一个句末标点（含紧跟的引号）或换行为止，最多 SENTENCE_MAX_LENGTH 字。
+ * 「给当前位置加书签」只记录这一句；与手机端 BookmarkMarker.firstSentence 一致
+ */
+export const firstSentence = (text: string) => {
+  const trimmed = text.replace(/^\s+/, '')
+  let result = ''
+  let i = 0
+  while (i < trimmed.length && result.length < SENTENCE_MAX_LENGTH) {
+    const c = trimmed[i]
+    if (c === '\n') break
+    result += c
+    i++
+    if (SENTENCE_ENDS.includes(c)) {
+      while (i < trimmed.length && CLOSING_QUOTES.includes(trimmed[i])) {
+        result += trimmed[i]
+        i++
+      }
+      break
+    }
+  }
+  return result.trim()
+}
+
+/** 用于在正文中匹配的书签文字（去空白），旧版整页书签只取第一句 */
+const matchKey = (bookText: string) => {
+  const key = normalizeText(bookText)
+  if (key.length <= LONG_TEXT_LENGTH) return key
+  return normalizeText(firstSentence(bookText))
+}
 
 /** 章节正文中每个非空白字符的位置 */
 type CharPoint = {
@@ -69,19 +100,13 @@ export const buildTextIndex = (
 
 /**
  * 找到书签在索引中的位置，返回 [起始下标, 长度]
- * @param forJump 整页书签只按开头定位，用于跳转
  */
 export const locateBookmark = (
   index: ChapterTextIndex,
   bookmark: Bookmark,
-  forJump = false,
 ): [number, number] | undefined => {
-  let key = normalizeText(bookmark.bookText)
+  const key = matchKey(bookmark.bookText)
   if (!key) return
-  if (key.length > PAGE_MARK_MIN_LENGTH) {
-    if (!forJump) return
-    key = key.slice(0, JUMP_KEY_LENGTH)
-  }
   let best = -1
   let bestDistance = Number.MAX_SAFE_INTEGER
   let found = index.text.indexOf(key)

@@ -169,7 +169,7 @@ watch(() => props.bookmarks, () => nextTick(renderMarks), { deep: true })
 /** 跳转到书签所在位置，找不到原文时按位置跳转 */
 const scrollToBookmark = (bookmark: Bookmark) => {
   const index = buildIndex()
-  const located = locateBookmark(index, bookmark, true)
+  const located = locateBookmark(index, bookmark)
   if (!located) {
     scrollToReadedLength(bookmark.chapterPos)
     return

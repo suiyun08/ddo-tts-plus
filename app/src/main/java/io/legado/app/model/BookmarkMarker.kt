@@ -7,7 +7,6 @@ import io.legado.app.data.entities.Book
 import io.legado.app.data.entities.Bookmark
 import io.legado.app.lib.theme.ThemeStore
 import io.legado.app.ui.book.read.page.entities.TextChapter
-import io.legado.app.ui.book.read.page.entities.TextPage
 import io.legado.app.utils.dpToPx
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -23,23 +22,23 @@ import kotlin.math.abs
  * 阅读页书签标记
  *
  * 书签不记录文字长度，且手机与网页的章节位置口径不同（手机含标题和段首缩进），
- * 因此按书签原文在正文中匹配定位：去掉空白后匹配，多处命中时取离书签位置最近的一处。
- * - 选中文字的书签：返回其在章节中的位置区间，正文画虚线下划线
- * - 整页书签（原文超过 [PAGE_MARK_MIN_LENGTH]）：不画线，按原文开头定位，开头所在页显示角标
+ * 因此按书签原文在正文中匹配定位：去掉空白后匹配，多处命中时取离书签位置最近的一处，
+ * 匹配到的文字画虚线下划线。
+ * 旧版菜单书签记录的是整页原文（超过 [LONG_TEXT_LENGTH]），只标出其第一句。
  */
 object BookmarkMarker {
 
-    /** 去空白后超过这个长度的书签视为整页书签 */
-    private const val PAGE_MARK_MIN_LENGTH = 200
+    /** 去空白后超过这个长度的书签（旧版整页书签）只标出第一句 */
+    private const val LONG_TEXT_LENGTH = 200
 
-    /** 整页书签只用原文开头这些字定位，与网页端跳转规则一致 */
-    private const val PAGE_MARK_KEY_LENGTH = 30
+    /** 第一句最多取这么多字 */
+    private const val SENTENCE_MAX_LENGTH = 50
+    private const val SENTENCE_ENDS = "。！？!?…；;"
+    private const val CLOSING_QUOTES = "”’」』\"'）)"
 
     class ChapterMarks(
         /** 需要画下划线的章节位置区间（闭区间）及对应书签 */
         val marks: List<Pair<IntRange, Bookmark>>,
-        /** 整页书签的章节位置 */
-        val pagePositions: List<Int>,
     ) {
         val ranges: List<IntRange> = marks.map { it.first }
     }
@@ -126,20 +125,11 @@ object BookmarkMarker {
         return marks
     }
 
-    fun hasPageMark(page: TextPage): Boolean {
-        if (page.isMsgPage || page.lineSize == 0) return false
-        val marks = getMarks(page.textChapter) ?: return false
-        if (marks.pagePositions.isEmpty()) return false
-        val start = page.chapterPosition
-        val end = start + page.charSize
-        return marks.pagePositions.any { it in start until end }
-    }
-
     fun underlineColor(): Int = ThemeStore.accentColor
 
     private fun resolve(chapter: TextChapter, list: List<Bookmark>, pageSize: Int): ChapterMarks {
         val chapterMarks = list.filter { it.chapterIndex == chapter.position }
-        if (chapterMarks.isEmpty()) return ChapterMarks(emptyList(), emptyList())
+        if (chapterMarks.isEmpty()) return ChapterMarks(emptyList())
         // 构建去空白的章节文本，以及每个字符对应的章节位置
         val text = StringBuilder()
         val posMap = ArrayList<Int>()
@@ -160,22 +150,15 @@ object BookmarkMarker {
         }
         val normalized = text.toString()
         val marks = arrayListOf<Pair<IntRange, Bookmark>>()
-        val pagePositions = arrayListOf<Int>()
         for (bookmark in chapterMarks) {
-            val key = bookmark.bookText.filterNot { it.isWhitespace() }
+            val key = matchKey(bookmark.bookText)
             if (key.isEmpty()) continue
-            if (key.length > PAGE_MARK_MIN_LENGTH) {
-                // 整页书签按原文开头定位，匹配不到再退回记录的位置
-                val best = findNearest(normalized, posMap, key.take(PAGE_MARK_KEY_LENGTH), bookmark.chapterPos)
-                pagePositions.add(if (best >= 0) posMap[best] else bookmark.chapterPos)
-                continue
-            }
             val best = findNearest(normalized, posMap, key, bookmark.chapterPos)
             if (best >= 0) {
                 marks.add(posMap[best]..posMap[best + key.length - 1] to bookmark)
             }
         }
-        return ChapterMarks(marks, pagePositions)
+        return ChapterMarks(marks)
     }
 
     /**
@@ -184,6 +167,39 @@ object BookmarkMarker {
     fun bookmarksAt(chapter: TextChapter, chapterPos: Int): List<Bookmark> {
         val marks = getMarks(chapter) ?: return emptyList()
         return marks.marks.filter { chapterPos in it.first }.map { it.second }
+    }
+
+    /**
+     * 用于在正文中匹配的书签文字（去空白），旧版整页书签只取第一句
+     */
+    private fun matchKey(bookText: String): String {
+        val key = bookText.filterNot { it.isWhitespace() }
+        if (key.length <= LONG_TEXT_LENGTH) return key
+        return firstSentence(bookText).filterNot { it.isWhitespace() }
+    }
+
+    /**
+     * 取第一句：到第一个句末标点（含紧跟的引号）或换行为止，最多 [SENTENCE_MAX_LENGTH] 字。
+     * 菜单「添加书签」只记录这一句，正文只画一小段虚线；网页端 firstSentence 与此一致
+     */
+    fun firstSentence(text: String): String {
+        val trimmed = text.trimStart()
+        val builder = StringBuilder()
+        var i = 0
+        while (i < trimmed.length && builder.length < SENTENCE_MAX_LENGTH) {
+            val c = trimmed[i]
+            if (c == '\n') break
+            builder.append(c)
+            i++
+            if (c in SENTENCE_ENDS) {
+                while (i < trimmed.length && trimmed[i] in CLOSING_QUOTES) {
+                    builder.append(trimmed[i])
+                    i++
+                }
+                break
+            }
+        }
+        return builder.toString().trim()
     }
 
     /**
