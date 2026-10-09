@@ -831,6 +831,14 @@ const isAtPageTop = () => document.documentElement.scrollTop <= 1
 
 /** 往前翻进入上一章后停在章末 */
 let pendingChapterEnd = false
+/** 按切换章节的方式重新加载某一章（标题在顶部）；atEnd 为 true 时停在章末 */
+const switchToChapter = (index: number, atEnd: boolean) => {
+  ElMessage({ message: catalog.value[index].title, duration: 1500 })
+  store.setContentLoading(true)
+  pendingChapterEnd = atEnd
+  getContent(index)
+  store.saveBookProgress()
+}
 const autoSwitchChapter = (forward: boolean) => {
   const loaded = chapterData.value
   if (loaded.length === 0) return
@@ -839,36 +847,114 @@ const autoSwitchChapter = (forward: boolean) => {
     ElMessage.warning(forward ? '已经是最后一章' : '已经是第一章')
     return
   }
-  ElMessage({ message: catalog.value[index].title, duration: 1500 })
-  store.setContentLoading(true)
-  pendingChapterEnd = !forward
-  getContent(index)
-  store.saveBookProgress()
+  switchToChapter(index, !forward)
 }
 
-const turnPage = (forward: boolean) => {
-  if (forward ? isAtPageBottom() : isAtPageTop()) {
-    autoSwitchChapter(forward)
-    return
-  }
-  const viewHeight = document.documentElement.clientHeight
-  const lines = collectLines()
-  if (forward) {
-    const lastFull = [...lines].reverse().find(l => l.top >= 0 && l.bottom <= viewHeight + 0.5)
-    const next = lastFull ? lines.find(l => l.top >= lastFull.bottom - 1) : undefined
-    if (next) showPageMarker(next, 'left')
-    else clearPageMarker()
-  } else {
-    const firstFull = lines.find(l => l.top >= -0.5 && l.bottom <= viewHeight)
-    const prev = firstFull ? [...lines].reverse().find(l => l.bottom <= firstFull.top + 1) : undefined
-    if (prev) showPageMarker(prev, 'right')
-    else clearPageMarker()
-  }
+const scrollPage = (delta: number) => {
+  // 按当前页面高度截住滚动距离：翻页动画中无限加载接上新章节时，不会滚进新章节
+  const root = document.documentElement
+  const maxScroll = root.scrollHeight - root.clientHeight
+  delta = Math.max(-root.scrollTop, Math.min(delta, maxScroll - root.scrollTop))
   canJump = false
-  jump((forward ? 1 : -1) * (viewHeight - PAGE_OVERLAP), {
+  jump(delta, {
     duration: store.config.jumpDuration,
     callback: () => (canJump = true),
   })
+}
+
+/**
+ * 翻页。开启无限加载时章节首尾相接，跨章时按章节边界分页，保证新章节标题落在屏幕顶部：
+ * - 往后翻：下一屏会出现新章节标题时，先停在本章末尾；本章已读完则把新标题滚到顶部
+ * - 往前翻：先停在本章标题处；已在本章开头则退到上一章末尾
+ */
+const turnPage = (forward: boolean) => {
+  const viewHeight = document.documentElement.clientHeight
+  const pageStep = viewHeight - PAGE_OVERLAP
+  /** 章节标题在屏幕上的位置，与刚加载一章时一致（顶部留白下方） */
+  const titleTop = (top.value as HTMLElement | undefined)?.offsetHeight ?? 0
+  const titleElements = Array.from(
+    content.value?.querySelectorAll('.title') ?? [],
+  ) as HTMLElement[]
+  const titles = titleElements.map(el => el.getBoundingClientRect().top)
+  if (forward && isAtPageBottom()) {
+    // 已到页面底部：若屏幕上还有未置顶的新章节标题（无限加载接上的短章节），按切章方式加载它
+    const pendingTitle = titleElements.find((_, i) => titles[i] > titleTop + 1)
+    const pendingIndex = Number(
+      pendingTitle?.closest('[chapterindex]')?.getAttribute('chapterindex'),
+    )
+    if (pendingTitle && !Number.isNaN(pendingIndex)) switchToChapter(pendingIndex, false)
+    else autoSwitchChapter(true)
+    return
+  }
+  const lines = collectLines()
+
+  if (forward) {
+    const lastFull = [...lines].reverse().find(l => l.top >= 0 && l.bottom <= viewHeight + 0.5)
+    const next = lastFull ? lines.find(l => l.top >= lastFull.bottom - 1) : undefined
+    const nextTitle = titles.find(t => t > titleTop + 1)
+    if (nextTitle !== undefined && nextTitle <= viewHeight + pageStep) {
+      // 本章还有没读到的行：完整位于新标题之上、且需要继续往下滚才能看到
+      const unread =
+        next !== undefined && next.bottom <= nextTitle + 2 && nextTitle - viewHeight >= 1
+      if (unread) {
+        // 先把本章剩余内容翻完，屏幕底部停在本章末尾
+        showPageMarker(next, 'left')
+        scrollPage(nextTitle - viewHeight)
+      } else {
+        clearPageMarker()
+        const root = document.documentElement
+        const maxScroll = root.scrollHeight - root.clientHeight
+        if (root.scrollTop + nextTitle - titleTop > maxScroll + 1) {
+          // 新章节太短，滚不到顶部：按切章方式加载它
+          const index = Number(
+            titleElements
+              .find((_, i) => titles[i] === nextTitle)
+              ?.closest('[chapterindex]')
+              ?.getAttribute('chapterindex'),
+          )
+          if (!Number.isNaN(index)) {
+            switchToChapter(index, false)
+            return
+          }
+        }
+        scrollPage(nextTitle - titleTop)
+      }
+      return
+    }
+    if (next) showPageMarker(next, 'left')
+    else clearPageMarker()
+    scrollPage(pageStep)
+    return
+  }
+
+  const firstFull = lines.find(l => l.top >= -0.5 && l.bottom <= viewHeight)
+  const prev = firstFull ? [...lines].reverse().find(l => l.bottom <= firstFull.top + 1) : undefined
+  const currentIndex = titles.reduce((found, t, i) => (t <= titleTop + 1 ? i : found), -1)
+  if (currentIndex >= 0) {
+    const current = titles[currentIndex]
+    if (current < titleTop - 1 && current > titleTop - pageStep) {
+      // 本章开头在上一屏以内：先停在本章标题处
+      if (prev) showPageMarker(prev, 'right')
+      else clearPageMarker()
+      scrollPage(current - titleTop)
+      return
+    }
+    if (Math.abs(current - titleTop) <= 1 && currentIndex > 0) {
+      // 已在本章开头，上一章已加载：退到上一章末尾，并标出其最后一行
+      const lastOfPrevious = [...lines].reverse().find(l => l.bottom <= current + 1)
+      if (lastOfPrevious) showPageMarker(lastOfPrevious, 'right')
+      else clearPageMarker()
+      scrollPage(current - viewHeight)
+      return
+    }
+  }
+  if (isAtPageTop()) {
+    autoSwitchChapter(false)
+    return
+  }
+  if (prev) showPageMarker(prev, 'right')
+  else clearPageMarker()
+  scrollPage(-pageStep)
 }
 
 /** 正在输入或有弹窗时不响应翻页按键 */
