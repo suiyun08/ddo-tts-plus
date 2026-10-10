@@ -631,15 +631,21 @@ const onEscape = (event: KeyboardEvent) => {
 }
 
 // 停止滚动 2 秒后保存进度；持续滚动时最多 10 秒保存一次
-let lastProgressSaveTime = 0
 const saveBookProgressDebounced = useDebounceFn(
-  () => {
-    lastProgressSaveTime = Date.now()
-    return store.saveBookProgress()
-  },
+  () => store.saveBookProgress(),
   2000,
   { maxWait: 10000 },
 )
+
+/**
+ * 用户是否在网页上操作过（滚动、按键、点击）。只有用户操作带来的进度变化才同步给手机；
+ * 打开书籍、采用手机进度等程序定位前会重置，避免把网页的旧进度发给手机
+ */
+let userInput = false
+const onUserInput = () => {
+  userInput = true
+}
+const USER_INPUT_EVENTS = ['wheel', 'touchmove', 'keydown', 'mousedown'] as const
 
 const onReadedLengthChange = (index: number, pos: number) => {
   saveReadingBookProgressToBrowser(index, pos)
@@ -656,6 +662,7 @@ const saveReadingBookProgressToBrowser = (index: number, pos: number) => {
   // 保存pinia
   chapterIndex.value = index
   chapterPos.value = pos
+  if (userInput) store.markProgressDirty()
 }
 
 // 进度同步
@@ -669,17 +676,35 @@ const saveReadingBookProgressToBrowser = (index: number, pos: number) => {
 const onVisibilityChange = () => {
   const _bookProgress = bookProgress.value
   if (document.visibilityState == 'hidden' && _bookProgress) {
-    lastProgressSaveTime = Date.now()
+    // 只在网页上有未发送的阅读进度时才会真正发送
     store.saveBookProgress()
   } else if (document.visibilityState == 'visible') {
     checkPhoneProgress()
   }
 }
 
+/** 从手机读取这本书的当前进度 */
+const fetchPhoneProgress = async (bookUrl: string) => {
+  const res = await API.getBookShelf()
+  if (!res.data.isSuccess) return
+  return res.data.data.find(book => book.bookUrl === bookUrl)
+}
+
+/** 采用手机进度：程序定位，不会再发回手机 */
+const adoptPhoneProgress = (index: number, pos: number) => {
+  userInput = false
+  store.setContentLoading(true)
+  getContent(index, true, pos)
+  store.setSyncedProgress(store.readingBook.bookUrl, index, pos)
+}
+
 /**
- * 切回网页时检查手机端进度：手机读得更靠后、且是在网页上次保存之后读的，提示是否跳转
+ * 检查手机端进度：手机进度与上次同步的不一致，说明在手机上读过，提示是否跳转。
+ * 不比较时间，避免电脑与手机时钟不一致导致误判
  */
 let lastPhoneCheckTime = 0
+/** 已经提示过的手机进度，关闭提示后同一进度不再重复提示 */
+let promptedPhoneProgress = ''
 let phoneProgressNotice: { close: () => void } | null = null
 const checkPhoneProgress = async () => {
   const now = Date.now()
@@ -687,28 +712,31 @@ const checkPhoneProgress = async () => {
   lastPhoneCheckTime = now
   const { bookUrl } = store.readingBook
   try {
-    const res = await API.getBookShelf()
-    if (!res.data.isSuccess) return
-    const phone = res.data.data.find(book => book.bookUrl === bookUrl)
-    if (!phone || phone.durChapterTime <= lastProgressSaveTime + 1000) return
-    const ahead =
-      phone.durChapterIndex > chapterIndex.value ||
-      (phone.durChapterIndex === chapterIndex.value &&
-        phone.durChapterPos > chapterPos.value)
-    if (!ahead || typeof catalog.value[phone.durChapterIndex] === 'undefined') return
+    const phone = await fetchPhoneProgress(bookUrl)
+    const synced = store.syncedProgress
+    if (!phone || !synced || synced.bookUrl !== bookUrl) return
+    if (
+      phone.durChapterIndex === synced.chapterIndex &&
+      phone.durChapterPos === synced.chapterPos
+    ) {
+      return
+    }
+    const key = `${phone.durChapterIndex}:${phone.durChapterPos}`
+    if (key === promptedPhoneProgress) return
+    if (typeof catalog.value[phone.durChapterIndex] === 'undefined') return
+    promptedPhoneProgress = key
     phoneProgressNotice?.close()
     const title =
       phone.durChapterTitle || catalog.value[phone.durChapterIndex].title
     phoneProgressNotice = ElNotification({
-      title: '手机端进度更靠后',
-      message: `手机已读到「${title}」，点击跳转`,
+      title: '手机端进度有更新',
+      message: `手机读到了「${title}」，点击跳转`,
       position: 'top-right',
-      duration: 10000,
+      duration: 0,
       customClass: 'phone-progress-notice',
       onClick: () => {
         phoneProgressNotice?.close()
-        store.setContentLoading(true)
-        getContent(phone.durChapterIndex, true, phone.durChapterPos)
+        adoptPhoneProgress(phone.durChapterIndex, phone.durChapterPos)
       },
     })
   } catch (e) {
@@ -718,6 +746,8 @@ const checkPhoneProgress = async () => {
 const onWindowFocus = () => {
   if (document.visibilityState == 'visible') checkPhoneProgress()
 }
+// 页面保持可见时（如放在副屏），每 30 秒检查一次手机进度
+let phoneProgressTimer = 0
 // 定时同步
 
 // 章节切换
@@ -1016,12 +1046,22 @@ onMounted(async () => {
   const bookUrl = sessionStorage.getItem('bookUrl')
   const name = sessionStorage.getItem('bookName')
   const author = sessionStorage.getItem('bookAuthor')
-  const chapterIndex = Number(sessionStorage.getItem('chapterIndex') || 0)
-  const chapterPos = Number(sessionStorage.getItem('chapterPos') || 0)
+  let chapterIndex = Number(sessionStorage.getItem('chapterIndex') || 0)
+  let chapterPos = Number(sessionStorage.getItem('chapterPos') || 0)
   const isSeachBook = sessionStorage.getItem('isSeachBook') === 'true'
   if (isNullOrBlank(bookUrl) || isNullOrBlank(name) || author === null) {
     ElMessage.warning('书籍信息为空，即将自动返回书架页面...')
     return setTimeout(toShelf, 500)
+  }
+  // 以手机端的当前进度为准（刷新页面、从「最近阅读」打开时，浏览器里存的可能是旧进度）
+  try {
+    const phone = await fetchPhoneProgress(bookUrl as string)
+    if (phone) {
+      chapterIndex = phone.durChapterIndex
+      chapterPos = phone.durChapterPos
+    }
+  } catch (e) {
+    console.warn('[BookChapter]: 获取手机端进度失败，使用浏览器记录的进度', e)
   }
   const book: typeof store.readingBook = {
     // @ts-expect-error: bookUrl name author is NON_Blank string here
@@ -1037,8 +1077,21 @@ onMounted(async () => {
   window.addEventListener('resize', onResize)
   loadingWrapper(
     store.loadWebCatalog(book).then(chapters => {
+      if (typeof chapters[chapterIndex] === 'undefined') {
+        chapterIndex = 0
+        chapterPos = 0
+        book.chapterIndex = 0
+        book.chapterPos = 0
+      }
       store.setReadingBook(book)
+      store.setSyncedProgress(book.bookUrl, chapterIndex, chapterPos)
       getContent(chapterIndex, true, chapterPos)
+      USER_INPUT_EVENTS.forEach(name =>
+        window.addEventListener(name, onUserInput, { passive: true, capture: true }),
+      )
+      phoneProgressTimer = window.setInterval(() => {
+        if (document.visibilityState == 'visible') checkPhoneProgress()
+      }, 30000)
       loadBookmarks()
       document.addEventListener('selectionchange', onSelectionChange)
       window.addEventListener('scroll', closeBookmarkPopover, { passive: true })
@@ -1065,6 +1118,10 @@ onUnmounted(() => {
   window.removeEventListener('keydown', ignoreKeyPress)
   window.removeEventListener('resize', onResize)
   window.removeEventListener('focus', onWindowFocus)
+  USER_INPUT_EVENTS.forEach(name =>
+    window.removeEventListener(name, onUserInput, { capture: true }),
+  )
+  clearInterval(phoneProgressTimer)
   clearPageMarker()
   phoneProgressNotice?.close()
   // 兼容Safari < 14

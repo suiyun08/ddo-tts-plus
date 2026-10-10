@@ -43,6 +43,10 @@ export const useBookStore = defineStore('book', {
       config: default_config,
       miniInterface: false,
       readSettingsVisible: false,
+      /** 网页与手机端最近一次一致的进度（网页发出的，或从手机读取的） */
+      syncedProgress: null as { bookUrl: string; chapterIndex: number; chapterPos: number } | null,
+      /** 用户在网页上读过、尚未发给手机的进度 */
+      progressDirty: false,
     }
   },
   getters: {
@@ -189,10 +193,34 @@ export const useBookStore = defineStore('book', {
     clearSearchBooks() {
       this.searchBooks = []
     },
-    /** 1.保存进度到app 2.修改内存中的数据*/
+    /** 用户在网页上阅读导致进度变化，需要同步给手机 */
+    markProgressDirty() {
+      this.progressDirty = true
+    },
+    /** 记录网页与手机已一致的进度（打开书籍、采用手机进度时调用），不会发给手机 */
+    setSyncedProgress(bookUrl: string, chapterIndex: number, chapterPos: number) {
+      this.syncedProgress = { bookUrl, chapterIndex, chapterPos }
+      this.progressDirty = false
+    },
+    /**
+     * 1.保存进度到app 2.修改内存中的数据
+     * 只发送用户在网页上读出来的新进度：未在网页上阅读、或与已同步进度相同时不发送，
+     * 避免切换标签、锁屏、打开页面时用网页的旧进度覆盖手机进度
+     */
     async saveBookProgress() {
-      if (!this.bookProgress) return Promise.resolve()
-      const { bookUrl } = this.readingBook
+      if (!this.bookProgress || !this.progressDirty) return Promise.resolve()
+      const { bookUrl, chapterIndex, chapterPos } = this.readingBook
+      const synced = this.syncedProgress
+      this.progressDirty = false
+      if (
+        synced &&
+        synced.bookUrl === bookUrl &&
+        synced.chapterIndex === chapterIndex &&
+        synced.chapterPos === chapterPos
+      ) {
+        return Promise.resolve()
+      }
+      this.syncedProgress = { bookUrl, chapterIndex, chapterPos }
       const shelfRaw = toRaw(this.shelf)
       const findIndex = shelfRaw.findIndex(book => book.bookUrl === bookUrl)
       if (findIndex > -1) {
