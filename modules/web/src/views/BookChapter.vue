@@ -1,83 +1,40 @@
 <template>
   <div
     class="chapter-wrapper"
+    ref="wrapper"
     :style="bodyTheme"
     :class="{ night: isNight, day: !isNight }"
     @click="onWrapperClick"
   >
     <div class="tool-bar" :style="leftBarTheme">
       <div class="tools">
-        <el-popover
-          placement="right"
-          :width="popupWidth"
-          trigger="click"
-          :show-arrow="false"
-          v-model:visible="popCataVisible"
-          popper-class="pop-cata"
+        <div
+          class="tool-icon"
+          :class="{ active: popCataVisible }"
+          @click.stop="togglePanel('catalog')"
         >
-          <PopCatalog @getContent="getContent" class="popup" />
-          <template #reference>
-            <div class="tool-icon" :class="{ 'no-point': false }">
-              <div class="iconfont">&#58905;</div>
-              <div class="icon-text">目录</div>
-            </div>
-          </template>
-        </el-popover>
-        <el-popover
-          placement="right"
-          :width="popupWidth"
-          trigger="click"
-          :show-arrow="false"
-          v-model:visible="bookmarkVisible"
-          popper-class="pop-cata"
-        >
-          <BookmarkPanel
-            class="popup"
-            :bookmarks="bookmarks"
-            :currentChapterIndex="chapterIndex"
-            @jump="jumpToBookmark"
-            @edit="editBookmark"
-            @remove="removeBookmark"
-            @addCurrent="addCurrentBookmark"
-          />
-          <template #reference>
-            <div class="tool-icon" :class="{ 'no-point': noPoint }">
-              <div class="iconfont"><el-icon><CollectionTag /></el-icon></div>
-              <div class="icon-text">书签</div>
-            </div>
-          </template>
-        </el-popover>
-        <el-popover
-          placement="right"
-          :width="popupWidth"
-          trigger="click"
-          :show-arrow="false"
-          v-model:visible="readSettingsVisible"
-          popper-class="pop-setting"
-        >
-          <read-settings class="popup" />
-          <template #reference>
-            <div class="tool-icon" :class="{ 'no-point': noPoint }">
-              <div class="iconfont">&#58971;</div>
-              <div class="icon-text">设置</div>
-            </div>
-          </template>
-        </el-popover>
-        <div class="tool-icon" @click="toShelf">
-          <div class="iconfont">&#58892;</div>
-          <div class="icon-text">书架</div>
-        </div>
-        <div class="tool-icon" :class="{ 'no-point': noPoint }" @click="toTop">
-          <div class="iconfont">&#58914;</div>
-          <div class="icon-text">顶部</div>
+          <div class="iconfont">&#58905;</div>
+          <div class="icon-text">目录</div>
         </div>
         <div
           class="tool-icon"
-          :class="{ 'no-point': noPoint }"
-          @click="toBottom"
+          :class="{ 'no-point': noPoint, active: bookmarkVisible }"
+          @click.stop="togglePanel('bookmark')"
         >
-          <div class="iconfont">&#58915;</div>
-          <div class="icon-text">底部</div>
+          <div class="iconfont"><el-icon><CollectionTag /></el-icon></div>
+          <div class="icon-text">书签</div>
+        </div>
+        <div
+          class="tool-icon"
+          :class="{ 'no-point': noPoint, active: readSettingsVisible }"
+          @click.stop="togglePanel('settings')"
+        >
+          <div class="iconfont">&#58971;</div>
+          <div class="icon-text">设置</div>
+        </div>
+        <div class="tool-icon" @click="toShelf">
+          <div class="iconfont">&#58892;</div>
+          <div class="icon-text">书架</div>
         </div>
       </div>
     </div>
@@ -86,21 +43,62 @@
         <div
           class="tool-icon"
           :class="{ 'no-point': noPoint }"
-          @click="toPreChapter"
+          title="上一页（← ↑ PageUp）"
+          @click.stop="turnPage(false)"
         >
           <div class="iconfont">&#58920;</div>
-          <span v-if="miniInterface">上一章</span>
+          <div class="icon-text">上一页</div>
         </div>
         <div
           class="tool-icon"
           :class="{ 'no-point': noPoint }"
-          @click="toNextChapter"
+          title="下一页（→ ↓ 空格 PageDown）"
+          @click.stop="turnPage(true)"
         >
-          <span v-if="miniInterface">下一章</span>
           <div class="iconfont">&#58913;</div>
+          <div class="icon-text">下一页</div>
         </div>
       </div>
     </div>
+    <ReaderPanel
+      :visible="popCataVisible"
+      title="目录"
+      :background="popupColor"
+      :width="panelWidth"
+      :isNight="isNight"
+      @close="popCataVisible = false"
+    >
+      <PopCatalog @gotoChapter="gotoChapter" />
+    </ReaderPanel>
+    <ReaderPanel
+      :visible="bookmarkVisible"
+      title="书签"
+      :background="popupColor"
+      :width="panelWidth"
+      :isNight="isNight"
+      @close="bookmarkVisible = false"
+    >
+      <template #extra>
+        <button class="panel-pill" @click="addCurrentBookmark">给当前位置加书签</button>
+      </template>
+      <BookmarkPanel
+        :bookmarks="bookmarks"
+        :currentChapterIndex="chapterIndex"
+        @jump="jumpToBookmark"
+        @edit="editBookmark"
+        @remove="removeBookmark"
+      />
+    </ReaderPanel>
+    <ReaderPanel
+      :visible="readSettingsVisible"
+      title="设置"
+      :background="popupColor"
+      width="560px"
+      :isNight="isNight"
+      @close="readSettingsVisible = false"
+    >
+      <read-settings />
+    </ReaderPanel>
     <div
       class="selection-bookmark"
       v-if="selectionButton"
@@ -157,6 +155,8 @@
             @readedLengthChange="onReadedLengthChange"
             v-if="showContent"
           />
+          <!-- 章末留白：最后一页不足一屏时照常翻一整屏，阅读起点不跳动 -->
+          <div class="chapter-end-space" :style="{ height: viewHeight + 'px' }"></div>
         </div>
         <div class="loading" ref="loading"></div>
         <div class="bottom-bar" ref="bottom"></div>
@@ -176,6 +176,8 @@ import { CollectionTag } from '@element-plus/icons-vue'
 import BookmarkPanel from '@/components/BookmarkPanel.vue'
 import BookmarkPopover from '@/components/BookmarkPopover.vue'
 import BookmarkEditor from '@/components/BookmarkEditor.vue'
+import ReaderPanel from '@/components/ReaderPanel.vue'
+import { beginPageTurn, type PageTurn } from '@/utils/pageCurl'
 import { caretFromPoint, firstSentence } from '@/utils/bookmark'
 import type { Bookmark } from '@/book'
 
@@ -273,13 +275,10 @@ const readWidth = computed(() => {
     return window.innerWidth + 'px'
   }
 })
-const popupWidth = computed(() => {
-  if (!miniInterface.value) {
-    return store.config.readWidth - 33
-  } else {
-    return window.innerWidth - 33
-  }
-})
+/** 目录、书签浮窗宽度：与正文栏同宽 */
+const panelWidth = computed(() =>
+  miniInterface.value ? 'calc(100vw - 32px)' : store.config.readWidth - 60 + 'px',
+)
 const bodyTheme = computed(() => {
   return {
     background: bodyColor.value,
@@ -301,12 +300,13 @@ const leftBarTheme = computed(() => {
     display: miniInterface.value && !showToolBar.value ? 'none' : 'block',
   }
 })
+/** 翻页按钮在左下角，与左侧工具栏对齐 */
 const rightBarTheme = computed(() => {
   return {
     background: popupColor.value,
-    marginRight: miniInterface.value
+    marginLeft: miniInterface.value
       ? 0
-      : -(store.config.readWidth / 2 + 52) + 'px',
+      : -(store.config.readWidth / 2 + 68) + 'px',
     display: miniInterface.value && !showToolBar.value ? 'none' : 'block',
   }
 })
@@ -315,7 +315,10 @@ const rightBarTheme = computed(() => {
  * pc移动端判断 最大阅读宽度修正
  * 阅读宽度最小为640px 加上工具栏 68px 52px 取较大值 为 776px
  */
+/** 窗口可视高度，章末留白用 */
+const viewHeight = ref(document.documentElement.clientHeight)
 const onResize = () => {
+  viewHeight.value = document.documentElement.clientHeight
   // 窗口尺寸变化后行位置会变，翻页标记失效
   clearPageMarker()
   store.setMiniInterface(window.innerWidth < 776)
@@ -332,15 +335,8 @@ watch(
   () => store.config.readWidth,
   width => checkPageWidth(width),
 )
-// 顶部底部跳转
 const top = ref()
 const bottom = ref()
-const toTop = () => {
-  jump(top.value)
-}
-const toBottom = () => {
-  jump(bottom.value)
-}
 
 // 书架路由切换
 const router = useRouter()
@@ -353,6 +349,35 @@ const chapterData = ref<{ index: number; content: string[]; title: string }[]>(
   [],
 )
 const noPoint = ref(true)
+
+// 预加载：读当前章时先取下一章，翻到下一章时不用等待
+type ContentRequest = ReturnType<typeof API.getBookContent>
+const contentCache = new Map<number, ContentRequest>()
+const fetchContent = (index: number): ContentRequest => {
+  const cached = contentCache.get(index)
+  if (cached) return cached
+  const request = API.getBookContent(
+    store.readingBook.bookUrl,
+    catalog.value[index].index,
+  )
+  contentCache.set(index, request)
+  request.then(
+    res => {
+      if (!res.data.isSuccess) contentCache.delete(index)
+    },
+    () => contentCache.delete(index),
+  )
+  return request
+}
+const prefetchContent = (index: number) => {
+  if (typeof catalog.value[index] === 'undefined' || contentCache.has(index)) return
+  // 只保留当前章附近的预加载内容
+  for (const key of contentCache.keys()) {
+    if (Math.abs(key - index) > 3) contentCache.delete(key)
+  }
+  fetchContent(index).catch(() => {})
+}
+
 const getContent = (index: number, reloadChapter = true, chapterPos = 0) => {
   if (reloadChapter) {
     //展示进度条
@@ -364,18 +389,19 @@ const getContent = (index: number, reloadChapter = true, chapterPos = 0) => {
     chapterData.value = []
     clearPageMarker()
   }
-  const bookUrl = store.readingBook.bookUrl
-  const { title, index: chapterIndex } = catalog.value[index]
+  const { title } = catalog.value[index]
 
   loadingWrapper(
-    API.getBookContent(bookUrl, chapterIndex).then(
+    fetchContent(index).then(
       res => {
         if (res.data.isSuccess) {
           const data = res.data.data
           const content = data.split(/\n+/)
           chapterData.value.push({ index, content, title })
           if (reloadChapter) toChapterPos(chapterPos)
+          prefetchContent(index + 1)
         } else {
+          if (reloadChapter) nextTick(playPendingTurn)
           ElMessage({ message: res.data.errorMsg, type: 'error' })
           const content = [res.data.errorMsg]
           chapterData.value.push({ index, content, title })
@@ -391,6 +417,7 @@ const getContent = (index: number, reloadChapter = true, chapterPos = 0) => {
         const content = ['获取章节内容失败！']
         chapterData.value.push({ index, content, title })
         store.setShowContent(true)
+        if (reloadChapter) nextTick(playPendingTurn)
         throw err
       },
     ),
@@ -408,19 +435,30 @@ const toChapterPos = (pos: number) => {
     const target = pendingBookmark
     pendingBookmark = null
     if (pendingChapterEnd) {
-      // 往前翻进入上一章：停在章末，并标出最后一行
+      // 往前翻进入上一章：章末最后一行停在屏幕底部，并标出这一行
       pendingChapterEnd = false
+      const items = content.value?.querySelectorAll('[data-chapterpos]')
+      const last = items?.[items.length - 1] as HTMLElement | undefined
+      if (!last) return playPendingTurn()
       // 用 jump 滚动：切章开头排队的「回到顶部」也走 jump，同一个 jump 以最后一次为准，不会被覆盖
-      jump(bottom.value, {
+      jump(last, {
         duration: 0,
+        offset: last.offsetHeight - (document.documentElement.clientHeight - END_MARGIN),
         callback: () => {
           const lines = collectLines()
-          const last = lines[lines.length - 1]
-          if (last) showPageMarker(last, 'right')
+          const lastLine = [...lines].reverse().find(
+            l => l.bottom <= last.getBoundingClientRect().bottom + 1,
+          )
+          if (lastLine) showPageMarker(lastLine, 'right')
+          playPendingTurn()
         },
       })
-    } else if (target) chapterRef.value[0].scrollToBookmark(target)
+      return
+    }
+    if (target) chapterRef.value[0].scrollToBookmark(target)
     else chapterRef.value[0].scrollToReadedLength(pos)
+    // 等定位（下一帧执行）完成后再播放翻页动画
+    requestAnimationFrame(() => requestAnimationFrame(playPendingTurn))
   })
 }
 
@@ -450,6 +488,40 @@ const loadBookmarks = async () => {
 watch(bookmarkVisible, visible => {
   if (visible) loadBookmarks()
 })
+// 打开目录时刷新已读章节，获取手机端新读完的章节
+watch(popCataVisible, visible => {
+  if (visible) store.loadReadChapters()
+})
+
+// 目录、书签、设置浮窗：同一时间只开一个，再点一次按钮关闭
+type PanelName = 'catalog' | 'bookmark' | 'settings'
+const togglePanel = (name: PanelName) => {
+  const opened =
+    (name === 'catalog' && popCataVisible.value) ||
+    (name === 'bookmark' && bookmarkVisible.value) ||
+    (name === 'settings' && readSettingsVisible.value)
+  closePanels()
+  if (opened) return
+  if (name === 'catalog') popCataVisible.value = true
+  if (name === 'bookmark') bookmarkVisible.value = true
+  if (name === 'settings') readSettingsVisible.value = true
+}
+const closePanels = () => {
+  popCataVisible.value = false
+  bookmarkVisible.value = false
+  readSettingsVisible.value = false
+}
+const isPanelOpen = () =>
+  popCataVisible.value || bookmarkVisible.value || readSettingsVisible.value
+
+// 从目录跳转章节
+const gotoChapter = (index: number) => {
+  if (typeof catalog.value[index] === 'undefined') return
+  popCataVisible.value = false
+  store.setContentLoading(true)
+  getContent(index)
+  store.saveBookProgress()
+}
 
 const findChapterContent = (index: number) =>
   (chapterRef.value ?? []).find(
@@ -627,7 +699,9 @@ const closeBookmarkPopover = () => {
   bookmarkPopover.value = null
 }
 const onEscape = (event: KeyboardEvent) => {
-  if (event.key === 'Escape') closeBookmarkPopover()
+  if (event.key !== 'Escape') return
+  closeBookmarkPopover()
+  closePanels()
 }
 
 // 停止滚动 2 秒后保存进度；持续滚动时最多 10 秒保存一次
@@ -642,8 +716,11 @@ const saveBookProgressDebounced = useDebounceFn(
  * 打开书籍、采用手机进度等程序定位前会重置，避免把网页的旧进度发给手机
  */
 let userInput = false
+/** 最近一次用户操作的时间，用于判断滚动是不是用户自己滚的 */
+let lastUserInputTime = 0
 const onUserInput = () => {
   userInput = true
+  lastUserInputTime = Date.now()
 }
 const USER_INPUT_EVENTS = ['wheel', 'touchmove', 'keydown', 'mousedown'] as const
 
@@ -699,32 +776,36 @@ const adoptPhoneProgress = (index: number, pos: number) => {
 }
 
 /**
- * 检查手机端进度：手机进度与上次同步的不一致，说明在手机上读过，提示是否跳转。
+ * 检查手机端进度，在手机上读过时提示是否跳转。同时满足才算手机读过：
+ * 1. 手机进度与网页上次看到的手机进度不同（手机那边真的变了）
+ * 2. 不是网页自己最近发过去的进度，也不是网页当前所在的位置
+ * 网页刚发出进度时手机可能还没收到，这几秒内不检查；查询期间网页又发了进度，结果作废。
  * 不比较时间，避免电脑与手机时钟不一致导致误判
  */
 let lastPhoneCheckTime = 0
-/** 已经提示过的手机进度，关闭提示后同一进度不再重复提示 */
-let promptedPhoneProgress = ''
+/** 网页上次看到的手机进度（章节:位置）；关闭提示后同一进度不再重复提示 */
+let lastSeenPhoneProgress = ''
+const progressKey = (index: number, pos: number) => `${index}:${pos}`
+/** 发出进度后这段时间内不检查手机进度 */
+const SEND_SETTLE_TIME = 5000
 let phoneProgressNotice: { close: () => void } | null = null
 const checkPhoneProgress = async () => {
   const now = Date.now()
   if (now - lastPhoneCheckTime < 3000) return
+  if (now - store.lastProgressSendTime < SEND_SETTLE_TIME) return
   lastPhoneCheckTime = now
   const { bookUrl } = store.readingBook
+  const sendCount = store.progressSendCount
   try {
     const phone = await fetchPhoneProgress(bookUrl)
-    const synced = store.syncedProgress
-    if (!phone || !synced || synced.bookUrl !== bookUrl) return
-    if (
-      phone.durChapterIndex === synced.chapterIndex &&
-      phone.durChapterPos === synced.chapterPos
-    ) {
-      return
-    }
-    const key = `${phone.durChapterIndex}:${phone.durChapterPos}`
-    if (key === promptedPhoneProgress) return
+    if (!phone || bookUrl !== store.readingBook.bookUrl) return
+    if (store.progressSendCount !== sendCount) return
+    const key = progressKey(phone.durChapterIndex, phone.durChapterPos)
+    if (key === lastSeenPhoneProgress) return
+    lastSeenPhoneProgress = key
+    if (store.recentSentProgress.includes(key)) return
+    if (key === progressKey(chapterIndex.value, chapterPos.value)) return
     if (typeof catalog.value[phone.durChapterIndex] === 'undefined') return
-    promptedPhoneProgress = key
     phoneProgressNotice?.close()
     const title =
       phone.durChapterTitle || catalog.value[phone.durChapterIndex].title
@@ -750,45 +831,11 @@ const onWindowFocus = () => {
 let phoneProgressTimer = 0
 // 定时同步
 
-// 章节切换
-const toNextChapter = () => {
-  store.setContentLoading(true)
-  const index = chapterIndex.value + 1
-  if (typeof catalog.value[index] !== 'undefined') {
-    ElMessage({
-      message: '下一章',
-      type: 'info',
-    })
-    getContent(index)
-    store.saveBookProgress()
-  } else {
-    ElMessage({
-      message: '本章是最后一章',
-      type: 'error',
-    })
-  }
-}
-const toPreChapter = () => {
-  store.setContentLoading(true)
-  const index = chapterIndex.value - 1
-  if (typeof catalog.value[index] !== 'undefined') {
-    ElMessage({
-      message: '上一章',
-      type: 'info',
-    })
-    getContent(index)
-    store.saveBookProgress()
-  } else {
-    ElMessage({
-      message: '本章是第一章',
-      type: 'error',
-    })
-  }
-}
-
-// 翻页：空格、上下键、PageUp/PageDown 翻一屏（保留约两行重叠），翻到章首章末继续翻会自动换章；左右键切换章节
+// 翻页：空格、方向键、PageUp/PageDown、左下角按钮翻一屏（保留约两行重叠），翻到章末、章首继续翻会自动换章
 /** 翻页时保留的重叠高度，方便衔接上一屏 */
 const PAGE_OVERLAP = 100
+/** 往前翻到上一章章末时，最后一行离屏幕底部的距离 */
+const END_MARGIN = 16
 type LineBox = { top: number; bottom: number; left: number; right: number }
 
 /** 收集正文中当前视口附近的文字行（视口坐标），按从上到下排序 */
@@ -799,7 +846,7 @@ const collectLines = (): LineBox[] => {
   const range = document.createRange()
   for (const block of blocks) {
     const blockRect = block.getBoundingClientRect()
-    if (blockRect.bottom < -viewHeight || blockRect.top > viewHeight * 2) continue
+    if (blockRect.bottom < -viewHeight * 2.5 || blockRect.top > viewHeight * 2) continue
     range.selectNodeContents(block)
     for (const rect of range.getClientRects()) {
       if (rect.width === 0 || rect.height === 0) continue
@@ -853,17 +900,44 @@ const showPageMarker = (line: LineBox, side: 'left' | 'right') => {
   }
 }
 
-const isAtPageBottom = () => {
-  const root = document.documentElement
-  return root.clientHeight + root.scrollTop >= root.scrollHeight - 2
+// 翻页动画：仿真翻页、平滑滚动、无动画
+const wrapper = ref<HTMLElement>()
+const pageAnim = computed(() => store.config.pageAnim ?? 'curl')
+const turnDuration = computed(() => Math.max(store.config.jumpDuration, 100))
+/** 正在播放的仿真翻页；连续翻页时直接结束上一次动画 */
+let activeTurn: PageTurn | null = null
+/** 跨章翻页：已盖上当前画面，等新章节加载、定位好再播放 */
+let pendingTurn: PageTurn | null = null
+let pendingTurnTimer = 0
+const startTurn = (forward: boolean) => {
+  if (pageAnim.value !== 'curl' || !wrapper.value || !content.value) return null
+  return beginPageTurn(wrapper.value, content.value, forward)
 }
-const isAtPageTop = () => document.documentElement.scrollTop <= 1
+const playTurn = (turn: PageTurn) => {
+  activeTurn = turn
+  turn.play(turnDuration.value).then(() => {
+    if (activeTurn === turn) activeTurn = null
+  })
+}
+const playPendingTurn = () => {
+  clearTimeout(pendingTurnTimer)
+  const turn = pendingTurn
+  pendingTurn = null
+  if (turn) playTurn(turn)
+}
 
 /** 往前翻进入上一章后停在章末 */
 let pendingChapterEnd = false
 /** 按切换章节的方式重新加载某一章（标题在顶部）；atEnd 为 true 时停在章末 */
 const switchToChapter = (index: number, atEnd: boolean) => {
-  ElMessage({ message: catalog.value[index].title, duration: 1500 })
+  pendingTurn?.cancel()
+  pendingTurn = startTurn(!atEnd)
+  clearTimeout(pendingTurnTimer)
+  // 加载太久时先撤掉画面副本，露出加载状态
+  pendingTurnTimer = window.setTimeout(() => {
+    pendingTurn?.cancel()
+    pendingTurn = null
+  }, 3000)
   store.setContentLoading(true)
   pendingChapterEnd = atEnd
   getContent(index)
@@ -880,117 +954,133 @@ const autoSwitchChapter = (forward: boolean) => {
   switchToChapter(index, !forward)
 }
 
-const scrollPage = (delta: number) => {
-  // 按当前页面高度截住滚动距离：翻页动画中无限加载接上新章节时，不会滚进新章节
+/** 翻页滚动；仿真翻页时先盖上当前画面，页面瞬间跳到新位置后再播放卷页动画 */
+const scrollPage = (delta: number, forward: boolean) => {
+  // 按当前页面高度截住滚动距离：无限加载接上新章节时，不会滚进新章节
   const root = document.documentElement
   const maxScroll = root.scrollHeight - root.clientHeight
   delta = Math.max(-root.scrollTop, Math.min(delta, maxScroll - root.scrollTop))
-  canJump = false
-  jump(delta, {
-    duration: store.config.jumpDuration,
-    callback: () => (canJump = true),
-  })
+  if (pageAnim.value === 'scroll') {
+    canJump = false
+    jump(delta, {
+      duration: turnDuration.value,
+      callback: () => {
+        canJump = true
+        markReadChaptersOnScreen()
+      },
+    })
+    return
+  }
+  const turn = startTurn(forward)
+  window.scrollTo(0, root.scrollTop + delta)
+  markReadChaptersOnScreen()
+  if (turn) playTurn(turn)
 }
 
+type ChapterBlock = { index: number; titleTop: number; end: number }
+/** 已加载章节在屏幕上的位置（视口坐标）：标题顶部、正文末尾 */
+const chapterBlocks = (): ChapterBlock[] => {
+  const blocks: ChapterBlock[] = []
+  for (const element of content.value?.querySelectorAll('[chapterindex]') ?? []) {
+    const items = element.querySelectorAll('[data-chapterpos]')
+    if (items.length === 0) continue
+    blocks.push({
+      index: Number(element.getAttribute('chapterindex')),
+      titleTop: items[0].getBoundingClientRect().top,
+      end: items[items.length - 1].getBoundingClientRect().bottom,
+    })
+  }
+  return blocks
+}
+
+/** 记录读完的章节：章节末尾已经出现在屏幕上（或已翻过去） */
+const markReadChaptersOnScreen = () => {
+  if (!userInput) return
+  const viewHeight = document.documentElement.clientHeight
+  for (const block of chapterBlocks()) {
+    if (block.end <= viewHeight + 1) {
+      const url = catalog.value[block.index]?.url
+      if (url) store.markChapterRead(url)
+    }
+  }
+}
+// 用鼠标滚轮、触摸滚动读完章节时也记录
+const onUserScroll = useDebounceFn(() => {
+  if (Date.now() - lastUserInputTime < 1500) markReadChaptersOnScreen()
+}, 300)
+
 /**
- * 翻页。开启无限加载时章节首尾相接，跨章时按章节边界分页，保证新章节标题落在屏幕顶部：
- * - 往后翻：下一屏会出现新章节标题时，先停在本章末尾；本章已读完则把新标题滚到顶部
- * - 往前翻：先停在本章标题处；已在本章开头则退到上一章末尾
+ * 翻页。每章末尾留出一屏空白，章末不足一屏时照常翻一整屏，接下来要读的行位置不变：
+ * - 往后翻：本章还有没读到的内容就翻一屏；本章读完则把下一章标题翻到顶部（未加载时按切章方式加载）
+ * - 往前翻：本章开头在上一屏以内时停在本章标题处；已在本章开头则退到上一章末尾
  */
 const turnPage = (forward: boolean) => {
+  if (pageAnim.value === 'scroll' && !canJump) return
+  // 正在加载新章节
+  if (pendingTurn) return
+  // 上一次卷页动画还没播完，直接结束它
+  activeTurn?.cancel()
+  activeTurn = null
   const viewHeight = document.documentElement.clientHeight
   const pageStep = viewHeight - PAGE_OVERLAP
   /** 章节标题在屏幕上的位置，与刚加载一章时一致（顶部留白下方） */
   const titleTop = (top.value as HTMLElement | undefined)?.offsetHeight ?? 0
-  const titleElements = Array.from(
-    content.value?.querySelectorAll('.title') ?? [],
-  ) as HTMLElement[]
-  const titles = titleElements.map(el => el.getBoundingClientRect().top)
-  if (forward && isAtPageBottom()) {
-    // 已到页面底部：若屏幕上还有未置顶的新章节标题（无限加载接上的短章节），按切章方式加载它
-    const pendingTitle = titleElements.find((_, i) => titles[i] > titleTop + 1)
-    const pendingIndex = Number(
-      pendingTitle?.closest('[chapterindex]')?.getAttribute('chapterindex'),
-    )
-    if (pendingTitle && !Number.isNaN(pendingIndex)) switchToChapter(pendingIndex, false)
-    else autoSwitchChapter(true)
-    return
-  }
+  const blocks = chapterBlocks()
+  if (blocks.length === 0) return
+  // 当前章节：标题已经到达顶部位置的最后一章
+  let current = 0
+  blocks.forEach((block, i) => {
+    if (block.titleTop <= titleTop + 1) current = i
+  })
+  const block = blocks[current]
   const lines = collectLines()
 
   if (forward) {
-    const lastFull = [...lines].reverse().find(l => l.top >= 0 && l.bottom <= viewHeight + 0.5)
-    const next = lastFull ? lines.find(l => l.top >= lastFull.bottom - 1) : undefined
-    const nextTitle = titles.find(t => t > titleTop + 1)
-    if (nextTitle !== undefined && nextTitle <= viewHeight + pageStep) {
-      // 本章还有没读到的行：完整位于新标题之上、且需要继续往下滚才能看到
-      const unread =
-        next !== undefined && next.bottom <= nextTitle + 2 && nextTitle - viewHeight >= 1
-      if (unread) {
-        // 先把本章剩余内容翻完，屏幕底部停在本章末尾
-        showPageMarker(next, 'left')
-        scrollPage(nextTitle - viewHeight)
-      } else {
-        clearPageMarker()
-        const root = document.documentElement
-        const maxScroll = root.scrollHeight - root.clientHeight
-        if (root.scrollTop + nextTitle - titleTop > maxScroll + 1) {
-          // 新章节太短，滚不到顶部：按切章方式加载它
-          const index = Number(
-            titleElements
-              .find((_, i) => titles[i] === nextTitle)
-              ?.closest('[chapterindex]')
-              ?.getAttribute('chapterindex'),
-          )
-          if (!Number.isNaN(index)) {
-            switchToChapter(index, false)
-            return
-          }
-        }
-        scrollPage(nextTitle - titleTop)
-      }
+    if (block.end > viewHeight + 1) {
+      // 本章还没读完：翻一屏，标出接下来要读的行
+      const lastFull = [...lines].reverse().find(l => l.top >= 0 && l.bottom <= viewHeight + 0.5)
+      const next = lastFull ? lines.find(l => l.top >= lastFull.bottom - 1) : undefined
+      if (next) showPageMarker(next, 'left')
+      else clearPageMarker()
+      scrollPage(pageStep, true)
       return
     }
-    if (next) showPageMarker(next, 'left')
-    else clearPageMarker()
-    scrollPage(pageStep)
+    // 本章已读完：下一章标题翻到顶部
+    markReadChaptersOnScreen()
+    clearPageMarker()
+    const nextBlock = blocks[current + 1]
+    if (nextBlock) scrollPage(nextBlock.titleTop - titleTop, true)
+    else autoSwitchChapter(true)
     return
   }
 
-  const firstFull = lines.find(l => l.top >= -0.5 && l.bottom <= viewHeight)
-  const prev = firstFull ? [...lines].reverse().find(l => l.bottom <= firstFull.top + 1) : undefined
-  const currentIndex = titles.reduce((found, t, i) => (t <= titleTop + 1 ? i : found), -1)
-  if (currentIndex >= 0) {
-    const current = titles[currentIndex]
-    if (current < titleTop - 1 && current > titleTop - pageStep) {
-      // 本章开头在上一屏以内：先停在本章标题处
-      if (prev) showPageMarker(prev, 'right')
-      else clearPageMarker()
-      scrollPage(current - titleTop)
-      return
-    }
-    if (Math.abs(current - titleTop) <= 1 && currentIndex > 0) {
-      // 已在本章开头，上一章已加载：退到上一章末尾，并标出其最后一行
-      const lastOfPrevious = [...lines].reverse().find(l => l.bottom <= current + 1)
-      if (lastOfPrevious) showPageMarker(lastOfPrevious, 'right')
-      else clearPageMarker()
-      scrollPage(current - viewHeight)
-      return
-    }
-  }
-  if (isAtPageTop()) {
-    autoSwitchChapter(false)
+  if (block.titleTop < titleTop - 1) {
+    const firstFull = lines.find(l => l.top >= -0.5 && l.bottom <= viewHeight)
+    const prev = firstFull ? [...lines].reverse().find(l => l.bottom <= firstFull.top + 1) : undefined
+    if (prev) showPageMarker(prev, 'right')
+    else clearPageMarker()
+    // 本章开头在上一屏以内：停在本章标题处；否则往回翻一屏
+    if (block.titleTop > titleTop - pageStep) scrollPage(block.titleTop - titleTop, false)
+    else scrollPage(-pageStep, false)
     return
   }
-  if (prev) showPageMarker(prev, 'right')
-  else clearPageMarker()
-  scrollPage(-pageStep)
+  // 已在本章开头：退到上一章末尾，最后一行停在屏幕底部并标出
+  const prevBlock = blocks[current - 1]
+  if (prevBlock) {
+    const lastOfPrevious = [...lines].reverse().find(l => l.bottom <= prevBlock.end + 1)
+    if (lastOfPrevious) showPageMarker(lastOfPrevious, 'right')
+    else clearPageMarker()
+    scrollPage(prevBlock.end - (viewHeight - END_MARGIN), false)
+    return
+  }
+  autoSwitchChapter(false)
 }
 
 /** 正在输入或有弹窗时不响应翻页按键 */
 const shouldIgnoreKey = (event: KeyboardEvent) => {
   const target = event.target as HTMLElement | null
   if (target?.closest?.('input, textarea, select, [contenteditable="true"]')) return true
+  if (isPanelOpen()) return true
   return [...document.querySelectorAll('.el-overlay')].some(
     el => (el as HTMLElement).style.display !== 'none',
   )
@@ -999,24 +1089,16 @@ const shouldIgnoreKey = (event: KeyboardEvent) => {
 let canJump = true
 // 监听按键
 const handleKeyPress = (event: KeyboardEvent) => {
-  if (!canJump || shouldIgnoreKey(event)) return
+  if (shouldIgnoreKey(event)) return
   switch (event.key) {
     case 'ArrowLeft':
-      event.stopPropagation()
-      event.preventDefault()
-      toPreChapter()
-      break
-    case 'ArrowRight':
-      event.stopPropagation()
-      event.preventDefault()
-      toNextChapter()
-      break
     case 'ArrowUp':
     case 'PageUp':
       event.stopPropagation()
       event.preventDefault()
       turnPage(false)
       break
+    case 'ArrowRight':
     case 'ArrowDown':
     case 'PageDown':
       event.stopPropagation()
@@ -1032,7 +1114,7 @@ const handleKeyPress = (event: KeyboardEvent) => {
 }
 
 // 阻止浏览器默认的按键滚动，统一由 handleKeyPress 翻页
-const PAGE_KEYS = ['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', ' ']
+const PAGE_KEYS = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', ' ']
 const ignoreKeyPress = (event: KeyboardEvent) => {
   if (PAGE_KEYS.includes(event.key) && !shouldIgnoreKey(event)) {
     event.preventDefault()
@@ -1059,6 +1141,7 @@ onMounted(async () => {
     if (phone) {
       chapterIndex = phone.durChapterIndex
       chapterPos = phone.durChapterPos
+      lastSeenPhoneProgress = progressKey(chapterIndex, chapterPos)
     }
   } catch (e) {
     console.warn('[BookChapter]: 获取手机端进度失败，使用浏览器记录的进度', e)
@@ -1085,6 +1168,9 @@ onMounted(async () => {
       }
       store.setReadingBook(book)
       store.setSyncedProgress(book.bookUrl, chapterIndex, chapterPos)
+      store.recentSentProgress = []
+      store.readChapters = []
+      store.loadReadChapters()
       getContent(chapterIndex, true, chapterPos)
       USER_INPUT_EVENTS.forEach(name =>
         window.addEventListener(name, onUserInput, { passive: true, capture: true }),
@@ -1095,6 +1181,7 @@ onMounted(async () => {
       loadBookmarks()
       document.addEventListener('selectionchange', onSelectionChange)
       window.addEventListener('scroll', closeBookmarkPopover, { passive: true })
+      window.addEventListener('scroll', onUserScroll, { passive: true })
       window.addEventListener('keydown', onEscape)
       window.addEventListener('keyup', handleKeyPress)
       window.addEventListener('keydown', ignoreKeyPress)
@@ -1128,7 +1215,11 @@ onUnmounted(() => {
   document.removeEventListener('visibilitychange', onVisibilityChange)
   document.removeEventListener('selectionchange', onSelectionChange)
   window.removeEventListener('scroll', closeBookmarkPopover)
+  window.removeEventListener('scroll', onUserScroll)
   window.removeEventListener('keydown', onEscape)
+  activeTurn?.cancel()
+  pendingTurn?.cancel()
+  clearTimeout(pendingTurnTimer)
   bookmarkVisible.value = false
   readSettingsVisible.value = false
   popCataVisible.value = false
@@ -1172,15 +1263,6 @@ onBeforeRouteLeave(async (to, from, next) => {
 </script>
 
 <style lang="scss" scoped>
-:deep(.pop-setting) {
-  margin-left: 68px;
-  top: 0;
-}
-
-:deep(.pop-cata) {
-  margin-left: 10px;
-}
-
 .chapter-wrapper {
   padding: 0 4%;
 
@@ -1194,7 +1276,7 @@ onBeforeRouteLeave(async (to, from, next) => {
     position: fixed;
     top: 0;
     left: 50%;
-    z-index: 100;
+    z-index: 101;
 
     .tools {
       display: flex;
@@ -1227,8 +1309,8 @@ onBeforeRouteLeave(async (to, from, next) => {
   .read-bar {
     position: fixed;
     bottom: 0;
-    right: 50%;
-    z-index: 100;
+    left: 50%;
+    z-index: 101;
 
     .tools {
       display: flex;
@@ -1236,14 +1318,12 @@ onBeforeRouteLeave(async (to, from, next) => {
 
       .tool-icon {
         font-size: 18px;
-        width: 42px;
-        height: 31px;
-        padding-top: 12px;
+        width: 58px;
+        height: 48px;
         text-align: center;
-        align-items: center;
+        padding-top: 12px;
         cursor: pointer;
         outline: none;
-        margin-top: -1px;
 
         .iconfont {
           font-family: iconfont;
@@ -1252,7 +1332,46 @@ onBeforeRouteLeave(async (to, from, next) => {
           font-size: 16px;
           margin: 0 auto 6px;
         }
+
+        .icon-text {
+          font-size: 12px;
+        }
       }
+    }
+  }
+
+  .tool-icon {
+    transition:
+      background-color 0.15s,
+      color 0.15s;
+
+    &:hover {
+      background-color: rgba(237, 66, 89, 0.06);
+    }
+
+    /* 对应浮窗打开时按钮高亮 */
+    &.active,
+    &.active:hover {
+      background-color: rgba(237, 66, 89, 0.12);
+      color: #ed4259 !important;
+
+      .icon-text {
+        color: #ed4259 !important;
+      }
+    }
+  }
+
+  .panel-pill {
+    padding: 6px 14px;
+    border: 1px solid rgba(237, 66, 89, 0.5);
+    border-radius: 16px;
+    background: transparent;
+    color: #ed4259;
+    font-size: 13px;
+    cursor: pointer;
+
+    &:hover {
+      background: rgba(237, 66, 89, 0.08);
     }
   }
 
@@ -1304,17 +1423,15 @@ onBeforeRouteLeave(async (to, from, next) => {
       .top-bar {
         height: 64px;
       }
+
+      .chapter-end-space {
+        pointer-events: none;
+      }
     }
   }
 }
 
 .day {
-  :deep(.popup) {
-    box-shadow:
-      0 2px 4px rgba(0, 0, 0, 0.12),
-      0 0 6px rgba(0, 0, 0, 0.04);
-  }
-
   :deep(.tool-icon) {
     border: 1px solid rgba(0, 0, 0, 0.1);
     margin-top: -1px;
@@ -1334,12 +1451,6 @@ onBeforeRouteLeave(async (to, from, next) => {
 .night {
   :deep(.bookmark-popover) {
     color: #aaa;
-  }
-
-  :deep(.popup) {
-    box-shadow:
-      0 2px 4px rgba(0, 0, 0, 0.48),
-      0 0 6px rgba(0, 0, 0, 0.16);
   }
 
   :deep(.tool-icon) {
@@ -1382,9 +1493,9 @@ onBeforeRouteLeave(async (to, from, next) => {
     }
 
     .read-bar {
-      right: 0;
+      left: 0;
       width: 100vw;
-      margin-right: 0 !important;
+      margin-left: 0 !important;
 
       .tools {
         flex-direction: row;
@@ -1394,10 +1505,7 @@ onBeforeRouteLeave(async (to, from, next) => {
         .tool-icon {
           border: none;
           width: auto;
-
-          .iconfont {
-            display: inline-block;
-          }
+          min-width: 58px;
         }
       }
     }

@@ -18,6 +18,7 @@ const default_config: webReadConfig = {
   infiniteLoading: false,
   customFontName: '',
   jumpDuration: 1000,
+  pageAnim: 'curl',
   spacing: {
     paragraph: 1,
     line: 0.8,
@@ -47,6 +48,14 @@ export const useBookStore = defineStore('book', {
       syncedProgress: null as { bookUrl: string; chapterIndex: number; chapterPos: number } | null,
       /** 用户在网页上读过、尚未发给手机的进度 */
       progressDirty: false,
+      /** 网页最近发给手机的进度（章节:位置），用来识别手机返回的是不是网页自己发的进度 */
+      recentSentProgress: [] as string[],
+      /** 最近一次发送进度的时间 */
+      lastProgressSendTime: 0,
+      /** 发送进度的次数，查询手机进度期间有发送则作废查询结果 */
+      progressSendCount: 0,
+      /** 当前书读完的章节地址（手机和网页读完的都在内） */
+      readChapters: [] as string[],
     }
   },
   getters: {
@@ -202,6 +211,26 @@ export const useBookStore = defineStore('book', {
       this.syncedProgress = { bookUrl, chapterIndex, chapterPos }
       this.progressDirty = false
     },
+    /** 从手机读取当前书读完的章节 */
+    async loadReadChapters() {
+      const { name, author } = this.readingBook
+      if (!name) return
+      try {
+        const res = await API.getReadChapters(name, author ?? '')
+        if (res.data.isSuccess) this.readChapters = res.data.data
+      } catch (e) {
+        console.warn('[bookStore]: 获取已读章节失败', e)
+      }
+    },
+    /** 记录网页上读完的章节，同步给手机 */
+    markChapterRead(url: string) {
+      if (!url || this.readChapters.includes(url)) return
+      this.readChapters.push(url)
+      const { name, author } = this.readingBook
+      API.saveReadChapters(name, author ?? '', [url]).catch(e =>
+        console.warn('[bookStore]: 保存已读章节失败', e),
+      )
+    },
     /**
      * 1.保存进度到app 2.修改内存中的数据
      * 只发送用户在网页上读出来的新进度：未在网页上阅读、或与已同步进度相同时不发送，
@@ -221,6 +250,12 @@ export const useBookStore = defineStore('book', {
         return Promise.resolve()
       }
       this.syncedProgress = { bookUrl, chapterIndex, chapterPos }
+      this.recentSentProgress = [
+        ...this.recentSentProgress.slice(-19),
+        `${chapterIndex}:${chapterPos}`,
+      ]
+      this.lastProgressSendTime = Date.now()
+      this.progressSendCount++
       const shelfRaw = toRaw(this.shelf)
       const findIndex = shelfRaw.findIndex(book => book.bookUrl === bookUrl)
       if (findIndex > -1) {

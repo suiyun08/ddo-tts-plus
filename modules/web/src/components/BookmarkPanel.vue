@@ -1,11 +1,5 @@
 <template>
-  <div class="bookmark-wrapper" :style="popupTheme" @click.stop>
-    <div class="header">
-      <div class="title">书签</div>
-      <el-button size="small" text @click="emit('addCurrent')">
-        给当前位置加书签
-      </el-button>
-    </div>
+  <div class="bookmark-wrapper" @click.stop>
     <div class="list" v-if="bookmarks.length > 0">
       <div
         class="item"
@@ -29,13 +23,12 @@
       </div>
     </div>
     <div class="empty" v-else>
-      还没有书签。选中正文文字后点「加书签」，或点上方按钮给当前位置加书签。
+      还没有书签。选中正文文字后点「加书签」，或点右上角按钮给当前位置加书签。
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import settings from '../config/themeConfig'
 import type { Bookmark } from '@/book'
 import { formatBookmarkTime as formatTime } from '@/utils/bookmark'
 
@@ -47,44 +40,22 @@ const emit = defineEmits<{
   jump: [bookmark: Bookmark]
   edit: [bookmark: Bookmark]
   remove: [bookmark: Bookmark]
-  addCurrent: []
 }>()
-
-const store = useBookStore()
-const popupTheme = computed(() => ({
-  background: settings.themes[store.theme].popup,
-}))
 </script>
 
 <style lang="scss" scoped>
 .bookmark-wrapper {
-  margin: -16px;
-  padding: 18px 20px 20px 25px;
-
-  .header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 12px;
-
-    .title {
-      font-size: 18px;
-      font-weight: 400;
-      font-family: FZZCYSK;
-      color: #ed4259;
-      border-bottom: 1px solid #ed4259;
-    }
-  }
-
-  .list {
-    max-height: 360px;
-    overflow: auto;
-  }
-
   .item {
-    padding: 10px 4px;
-    border-bottom: 1px solid rgba(128, 128, 128, 0.2);
+    padding: 12px;
+    margin-bottom: 8px;
+    border-radius: 12px;
+    background: rgba(128, 128, 128, 0.07);
     cursor: pointer;
+    transition: background-color 0.15s;
+
+    &:hover {
+      background: rgba(128, 128, 128, 0.13);
+    }
 
     &.current .chapter {
       color: #ed4259;

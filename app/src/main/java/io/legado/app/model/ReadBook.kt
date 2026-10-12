@@ -918,10 +918,21 @@ object ReadBook : CoroutineScope by MainScope() {
                     }
                 }
                 appDb.bookDao.update(book)
+                markChapterReadIfLastPage(book)
             }.onFailure {
                 AppLog.put("保存书籍阅读进度信息出错\n$it", it)
             }
         }
+    }
+
+    /**
+     * 读到章节最后一页时记为读完，供网页目录区分已读章节
+     */
+    private fun markChapterReadIfLastPage(book: Book) {
+        val textChapter = curTextChapter ?: return
+        if (textChapter.chapter.index != durChapterIndex) return
+        if (!textChapter.isLastIndex(textChapter.getPageIndexByCharIndex(durChapterPos))) return
+        ReadChapterRecord.add(book.name, book.author, listOf(textChapter.chapter.url))
     }
 
     /**

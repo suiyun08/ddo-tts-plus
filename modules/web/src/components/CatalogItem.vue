@@ -4,7 +4,7 @@
       v-for="cata in catas"
       class="cata-text"
       :key="cata.url"
-      :class="{ selected: isSelected(cata.index) }"
+      :class="{ selected: isSelected(cata.index), read: !isSelected(cata.index) && isRead(cata) }"
       @click="gotoChapter(cata)"
     >
       {{ cata.title }}
@@ -19,6 +19,7 @@ const props = defineProps<{
   source: BookChapter | { index: number; catas: BookChapter[] }
   gotoChapter: (chapter: BookChapter) => void
   currentChapterIndex: number
+  isRead: (chapter: BookChapter) => boolean
 }>()
 
 const isSelected = (idx: number) => {
@@ -36,6 +37,11 @@ const catas = computed(() => {
 <style lang="scss" scoped>
 .selected {
   color: #eb4259;
+  font-weight: 600;
+}
+/* 读完的章节变淡，不抢注意力 */
+.read {
+  opacity: 0.42;
 }
 .wrapper {
   display: flex;
@@ -43,9 +49,15 @@ const catas = computed(() => {
   .cata-text {
     width: 100%;
     margin-right: 26px;
+    padding-left: 4px;
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
+    border-radius: 6px;
+
+    &:hover {
+      background: rgba(128, 128, 128, 0.1);
+    }
   }
 }
 </style>

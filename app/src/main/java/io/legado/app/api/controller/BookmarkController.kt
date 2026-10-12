@@ -3,6 +3,7 @@ package io.legado.app.api.controller
 import io.legado.app.api.ReturnData
 import io.legado.app.data.appDb
 import io.legado.app.data.entities.Bookmark
+import io.legado.app.model.ReadChapterRecord
 import io.legado.app.utils.GSON
 import io.legado.app.utils.fromJsonObject
 import io.legado.app.utils.printOnDebug
@@ -49,6 +50,40 @@ object BookmarkController {
         appDb.bookmarkDao.delete(bookmark)
         return returnData.setData("")
     }
+
+    /**
+     * 获取一本书读完的章节地址
+     */
+    fun getReadChapters(parameters: Map<String, List<String>>): ReturnData {
+        val returnData = ReturnData()
+        val name = parameters["name"]?.firstOrNull()
+        if (name.isNullOrEmpty()) {
+            return returnData.setErrorMsg("参数name不能为空")
+        }
+        val author = parameters["author"]?.firstOrNull() ?: ""
+        return returnData.setData(ReadChapterRecord.get(name, author))
+    }
+
+    /**
+     * 记录网页端读完的章节：{name, author, urls}
+     */
+    fun saveReadChapters(postData: String?): ReturnData {
+        val returnData = ReturnData()
+        val data = GSON.fromJsonObject<ReadChapters>(postData)
+            .onFailure { it.printOnDebug() }
+            .getOrNull()
+        if (data == null || data.name.isNullOrEmpty() || data.urls == null) {
+            return returnData.setErrorMsg("格式不对")
+        }
+        ReadChapterRecord.add(data.name, data.author ?: "", data.urls)
+        return returnData.setData("")
+    }
+
+    private class ReadChapters(
+        val name: String?,
+        val author: String?,
+        val urls: List<String>?
+    )
 
     /**
      * Gson 不会使用数据类的默认值，缺失字段会是 null，这里统一补齐

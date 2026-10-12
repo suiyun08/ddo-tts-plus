@@ -63,6 +63,7 @@ class HttpServer(port: Int) : NanoHTTPD(port) {
                             "/saveReadConfig" -> BookController.saveWebReadConfig(postData)
                             "/saveBookmark" -> BookmarkController.saveBookmark(postData)
                             "/deleteBookmark" -> BookmarkController.deleteBookmark(postData)
+                            "/saveReadChapters" -> BookmarkController.saveReadChapters(postData)
                             "/saveRssSource" -> RssSourceController.saveSource(postData)
                             "/saveRssSources" -> RssSourceController.saveSources(postData)
                             "/deleteRssSources" -> RssSourceController.deleteSources(postData)
@@ -88,6 +89,7 @@ class HttpServer(port: Int) : NanoHTTPD(port) {
                         "/image" -> BookController.getImg(parameters)
                         "/getReadConfig" -> BookController.getWebReadConfig()
                         "/getBookmarks" -> BookmarkController.getBookmarks(parameters)
+                        "/getReadChapters" -> BookmarkController.getReadChapters(parameters)
                         "/getRssSource" -> RssSourceController.getSource(parameters)
                         "/getRssSources" -> RssSourceController.sources
                         "/getReplaceRules" -> ReplaceRuleController.allRules

@@ -1,10 +1,5 @@
 <template>
-  <div
-    class="settings-wrapper"
-    :style="popupTheme"
-    :class="{ night: isNight, day: !isNight }"
-  >
-    <div class="settings-title">设置</div>
+  <div class="settings-wrapper" :class="{ night: isNight, day: !isNight }">
     <div class="setting-list">
       <ul>
         <li class="theme-list">
@@ -110,16 +105,14 @@
         <li class="paragraph-spacing">
           <i>段距</i>
           <div class="resize">
-            <div class="resize">
-              <span class="less" @click="lessParagraphSpacing"
-                ><em class="iconfont">&#58966;</em></span
-              ><b></b>
-              <span class="lang">{{ spacing.paragraph.toFixed(1) }}</span
-              ><b></b>
-              <span class="more" @click="moreParagraphSpacing"
-                ><em class="iconfont">&#58976;</em></span
-              >
-            </div>
+            <span class="less" @click="lessParagraphSpacing"
+              ><em class="iconfont">&#58966;</em></span
+            ><b></b>
+            <span class="lang">{{ spacing.paragraph.toFixed(1) }}</span
+            ><b></b>
+            <span class="more" @click="moreParagraphSpacing"
+              ><em class="iconfont">&#58976;</em></span
+            >
           </div>
         </li>
         <li class="read-width" v-if="!store.miniInterface">
@@ -134,19 +127,27 @@
             >
           </div>
         </li>
-        <li class="paragraph-spacing">
+        <li class="infinite-loading">
+          <i>翻页方式</i>
+          <span
+            v-for="item in pageAnims"
+            class="infinite-loading-item"
+            :key="item.value"
+            :class="{ selected: pageAnim == item.value }"
+            @click="setPageAnim(item.value)"
+            >{{ item.name }}</span
+          >
+        </li>
+        <li class="paragraph-spacing" v-if="pageAnim != 'none'">
           <i>翻页速度</i>
-          <div class="resize">
-            <div class="resize">
-              <span class="less" @click="lessJumpDuration">
-                <em class="iconfont">&#xe625;</em>
-              </span>
-              <b></b> <span class="lang">{{ jumpDuration }}</span
-              ><b></b>
-              <span class="more" @click="moreJumpDuration"
-                ><em class="iconfont">&#xe626;</em></span
-              >
-            </div>
+          <div class="resize" title="数字越大翻页越快">
+            <span class="less" @click="slowerTurn"
+              ><em class="iconfont">&#58966;</em></span
+            ><b></b> <span class="lang">{{ turnSpeed }} 档</span
+            ><b></b>
+            <span class="more" @click="fasterTurn"
+              ><em class="iconfont">&#58976;</em></span
+            >
           </div>
         </li>
         <li class="infinite-loading">
@@ -174,7 +175,6 @@
 <script setup lang="ts">
 import '../assets/fonts/popfont.css'
 import '../assets/fonts/iconfont.css'
-import settings from '../config/themeConfig'
 import API from '@api'
 import { useDebounceFn } from '@vueuse/shared'
 
@@ -221,11 +221,6 @@ const themeColors = [
     background: 'rgba(0, 0, 0, 0.5)',
   },
 ]
-const popupTheme = computed(() => {
-  return {
-    background: settings.themes[theme.value].popup,
-  }
-})
 const setTheme = (theme: number) => {
   store.config.theme = theme
 }
@@ -335,16 +330,30 @@ const lessReadWidth = () => {
   if (store.config.readWidth > 640) store.config.readWidth -= 160
 }
 
-//翻页速度
-const jumpDuration = computed(() => {
-  return store.config.jumpDuration
-})
-const moreJumpDuration = () => {
-  store.config.jumpDuration += 100
+//翻页方式
+const pageAnims = [
+  { name: '仿真', value: 'curl' },
+  { name: '滚动', value: 'scroll' },
+  { name: '无动画', value: 'none' },
+] as const
+const pageAnim = computed(() => store.config.pageAnim ?? 'curl')
+const setPageAnim = (value: (typeof pageAnims)[number]['value']) => {
+  store.config.pageAnim = value
 }
-const lessJumpDuration = () => {
-  if (store.config.jumpDuration === 0) return
-  store.config.jumpDuration -= 100
+
+//翻页速度：1–10 档，数字越大越快；配置里仍保存动画时长（1 档 1000 毫秒，10 档 100 毫秒）
+const MIN_DURATION = 100
+const MAX_DURATION = 1000
+const clampDuration = (duration: number) =>
+  Math.min(Math.max(Math.round(duration / 100) * 100, MIN_DURATION), MAX_DURATION)
+const turnSpeed = computed(
+  () => (MAX_DURATION + 100 - clampDuration(store.config.jumpDuration)) / 100,
+)
+const fasterTurn = () => {
+  store.config.jumpDuration = Math.max(clampDuration(store.config.jumpDuration) - 100, MIN_DURATION)
+}
+const slowerTurn = () => {
+  store.config.jumpDuration = Math.min(clampDuration(store.config.jumpDuration) + 100, MAX_DURATION)
 }
 
 //无限加载
@@ -369,25 +378,10 @@ const setInfiniteLoading = (loading: boolean) => {
 
 .settings-wrapper {
   user-select: none;
-  margin: -13px;
-  /*   width: 478px;
-  height: 350px; */
   text-align: left;
-  padding: 40px 0 40px 24px;
-  background: #ede7da url('../assets/imgs/themes/popup_1.png') repeat;
-
-  .settings-title {
-    font-size: 18px;
-    line-height: 22px;
-    margin-bottom: 28px;
-    font-family: FZZCYSK;
-    font-weight: 400;
-  }
+  padding-top: 4px;
 
   .setting-list {
-    max-height: calc(70vh - 50px);
-    overflow: auto;
-
     ul {
       list-style: none outside none;
       margin: 0;
@@ -436,16 +430,19 @@ const setInfiniteLoading = (loading: boolean) => {
 
       .font-list,
       .infinite-loading {
-        margin-top: 28px;
+        margin-top: 20px;
 
         .font-item,
         .infinite-loading-item {
           width: 78px;
           height: 34px;
           cursor: pointer;
-          margin-right: 16px;
-          border-radius: 2px;
+          margin-right: 12px;
+          border-radius: 17px;
           text-align: center;
+          transition:
+            border-color 0.15s,
+            color 0.15s;
           vertical-align: middle;
           display: inline-block;
           font:
@@ -476,17 +473,19 @@ const setInfiniteLoading = (loading: boolean) => {
       .letter-spacing,
       .line-spacing,
       .paragraph-spacing {
-        margin-top: 28px;
+        margin-top: 20px;
 
         .resize {
-          display: inline-block;
+          display: inline-flex;
+          align-items: center;
           width: 274px;
           height: 34px;
           vertical-align: middle;
-          border-radius: 2px;
+          border-radius: 17px;
+          overflow: hidden;
 
           span {
-            width: 89px;
+            flex: 1;
             height: 34px;
             line-height: 34px;
             display: inline-block;

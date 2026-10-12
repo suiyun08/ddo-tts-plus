@@ -1,11 +1,7 @@
 <template>
-  <div
-    :class="{ 'cata-wrapper': true, visible: popCataVisible }"
-    :style="popupTheme"
-  >
-    <div class="title">目录</div>
+  <div class="cata-wrapper">
     <virtual-list
-      style="height: 300px; overflow: auto"
+      :style="{ height: listHeight + 'px', overflow: 'auto' }"
       :class="{ night: isNight, day: !isNight }"
       ref="virtualListRef"
       data-key="index"
@@ -13,31 +9,26 @@
       item-class="cata"
       :data-sources="virtualListdata"
       :data-component="CatalogItem"
-      :estimate-size="40"
-      :extra-props="{ gotoChapter, currentChapterIndex }"
+      :estimate-size="ITEM_HEIGHT"
+      :extra-props="{ gotoChapter, currentChapterIndex, isRead }"
     />
   </div>
 </template>
 
 <script setup lang="ts">
 import VirtualList from 'vue3-virtual-scroll-list'
-import settings from '../config/themeConfig'
+import { useWindowSize } from '@vueuse/core'
 import '../assets/fonts/popfont.css'
 import CatalogItem from './CatalogItem.vue'
 import type { BookChapter } from '@/book'
 
 const store = useBookStore()
 
-const { catalog, popCataVisible, miniInterface } = storeToRefs(store)
+const { catalog, miniInterface, isNight } = storeToRefs(store)
 
-//主题
-const isNight = computed(() => store.theme)
-const theme = computed(() => store.theme)
-const popupTheme = computed(() => {
-  return {
-    background: settings.themes[theme.value].popup,
-  }
-})
+const ITEM_HEIGHT = 40
+/** 浮窗上下留白、标题栏和底部内边距 */
+const PANEL_CHROME = 80 + 62 + 20
 
 //虚拟列表 数据源
 const virtualListdata = computed(() => {
@@ -62,58 +53,54 @@ const virtualListdata = computed(() => {
   return virtualListDataSource
 })
 
-//打开目录 计算当前章节对应的虚拟列表位置
+// 列表高度随窗口高度和章节数量伸缩
+const { height: windowHeight } = useWindowSize()
+const listHeight = computed(() =>
+  Math.max(
+    ITEM_HEIGHT * 3,
+    Math.min(
+      virtualListdata.value.length * ITEM_HEIGHT,
+      windowHeight.value - PANEL_CHROME,
+    ),
+  ),
+)
+
+// 已读章节（手机和网页读完的）
+const readSet = computed(() => new Set(store.readChapters))
+const isRead = (chapter: BookChapter) => readSet.value.has(chapter.url)
+
+//打开目录 滚动到当前章节
 const virtualListRef = ref()
-const currentChapterIndex = computed({
-  get: () => store.readingBook.chapterIndex,
-  set: value => (store.readingBook.chapterIndex = value),
-})
+const currentChapterIndex = computed(() => store.readingBook.chapterIndex)
 const virtualListIndex = computed(() => {
   const index = currentChapterIndex.value
   if (miniInterface.value) return index
   // pc端 virtualListIitem有2个章节
   return Math.floor(index / 2)
 })
-onUpdated(() => {
-  // dom更新触发ResizeObserver，更新虚拟列表内部的sizes Map
-  if (!popCataVisible.value) return
-  virtualListRef.value.scrollToIndex(virtualListIndex.value)
+onMounted(() => {
+  nextTick(() => {
+    // 当前章节放在列表中间
+    const offset = Math.floor(listHeight.value / ITEM_HEIGHT / 2)
+    virtualListRef.value?.scrollToIndex(Math.max(virtualListIndex.value - offset, 0))
+  })
 })
 
 // 点击加载对应章节内容
-const emit = defineEmits(['getContent'])
+const emit = defineEmits<{ gotoChapter: [index: number] }>()
 const gotoChapter = (chapter: BookChapter) => {
-  const chapterIndex = catalog.value.indexOf(chapter)
-  currentChapterIndex.value = chapterIndex
-  store.setPopCataVisible(false)
-  store.setContentLoading(true)
-  store.saveBookProgress()
-  emit('getContent', chapterIndex)
+  emit('gotoChapter', catalog.value.indexOf(chapter))
 }
 </script>
 
 <style lang="scss" scoped>
 .cata-wrapper {
-  margin: -16px;
-  padding: 18px 0 24px 25px;
-
-  /* background: #ede7da url('../assets/imgs/themes/popup_1.png') repeat; */
-  .title {
-    font-size: 18px;
-    font-weight: 400;
-    font-family: FZZCYSK;
-    margin: 0 0 20px 0;
-    color: #ed4259;
-    width: fit-content;
-    border-bottom: 1px solid #ed4259;
-  }
   :deep(.data-wrapper) {
     .cata {
-      /*width: 50%;*/
       height: 40px;
       cursor: pointer;
       font:
-        16px / 40px PingFangSC-Regular,
+        15px / 40px PingFangSC-Regular,
         HelveticaNeue-Light,
         'Helvetica Neue Light',
         'Microsoft YaHei',
@@ -123,13 +110,13 @@ const gotoChapter = (chapter: BookChapter) => {
 
   .night {
     :deep(.cata) {
-      border-bottom: 1px solid #666;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     }
   }
 
   .day {
     :deep(.cata) {
-      border-bottom: 1px solid #f2f2f2;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.05);
     }
   }
 }

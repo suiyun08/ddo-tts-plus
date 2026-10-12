@@ -134,6 +134,17 @@ const saveBookmark = (bookmark: Partial<Bookmark>) =>
 const deleteBookmark = (bookmark: Bookmark) =>
   ajax.post<LeagdoApiResponse<string>>('deleteBookmark', bookmark)
 
+/** 读完的章节地址（手机和网页读完的都在内） */
+const getReadChapters = (name: string, author: string) =>
+  ajax.get<LeagdoApiResponse<string[]>>(
+    'getReadChapters?name=' +
+      encodeURIComponent(name) +
+      '&author=' +
+      encodeURIComponent(author),
+  )
+const saveReadChapters = (name: string, author: string, urls: string[]) =>
+  ajax.post<LeagdoApiResponse<string>>('saveReadChapters', { name, author, urls })
+
 const isBookSource = /bookSource/i.test(location.href)
 
 // 源编辑API
@@ -231,6 +242,8 @@ export default {
   getBookmarks,
   saveBookmark,
   deleteBookmark,
+  getReadChapters,
+  saveReadChapters,
 
   getSources,
   saveSources,
