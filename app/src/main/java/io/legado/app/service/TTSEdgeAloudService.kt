@@ -70,6 +70,8 @@ class TTSEdgeAloudService : BaseReadAloudService(), Player.Listener {
     private val audioCache = HashMap<String, ByteArray>()
     private val audioCacheList = arrayListOf<String>()
     private var previousMediaId = ""
+    /** 合成失败已暂停，继续朗读时需要重新合成当前段落 */
+    private var downloadFailed = false
     private lateinit var ctx:Context
 
     private val silentBytes: ByteArray by lazy {
@@ -150,7 +152,13 @@ class TTSEdgeAloudService : BaseReadAloudService(), Player.Listener {
                             Log.e(tag, "downloadAndPlayAudios runCatch onFailure")
                             when (it) {
                                 is CancellationException -> Unit
-                                else -> pauseReadAloud()
+                                else -> {
+                                    // 合成失败：暂停并提示，继续朗读时从当前段落重新合成
+                                    downloadFailed = true
+                                    AppLog.put("Edge 朗读合成失败\n${it.localizedMessage}", it)
+                                    toastOnUi("朗读服务连接失败，已暂停，检查网络后点继续重试")
+                                    launch(Main) { pauseReadAloud() }
+                                }
                             }
                             return@execute
                         }
@@ -198,18 +206,13 @@ class TTSEdgeAloudService : BaseReadAloudService(), Player.Listener {
             cacheAudio(fileName, silentBytes)
             return "fail"
         }
-        try {
-            return withContext(Dispatchers.IO) {
-                val voice = getVoiceValue()
-                val inputStream = edgeSpeakFetch.synthesizeText(speakText, speechRate,voice)
-                cacheAudio(fileName, inputStream)
-                "success"
-            }
-        } catch (e: Exception) {
-            Log.i(tag, "edgeSpeakFetch失败: $e")
-            cacheAudio(fileName, silentBytes)
+        // 失败时抛出异常，由调用方暂停并提示；不再缓存静音，避免该段被悄悄跳过
+        return withContext(Dispatchers.IO) {
+            val voice = getVoiceValue()
+            val inputStream = edgeSpeakFetch.synthesizeText(speakText, speechRate, voice)
+            cacheAudio(fileName, inputStream)
+            "success"
         }
-        return "fail"
     }
 
     private fun md5SpeakFileName(content: String): String {
@@ -231,6 +234,10 @@ class TTSEdgeAloudService : BaseReadAloudService(), Player.Listener {
         kotlin.runCatching {
             if (pageChanged) {
                 play()
+            } else if (downloadFailed) {
+                downloadFailed = false
+                exoPlayer.stop()
+                downloadAndPlayAudios()
             } else {
                 exoPlayer.play()
                 upPlayPos()
