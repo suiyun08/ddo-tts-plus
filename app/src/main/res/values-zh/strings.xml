@@ -1232,4 +1232,14 @@
     <string name="auto_check_new_backup_t">自动检查新备份</string>
     <string name="auto_check_new_backup_s">打开软件时检查是否有新备份，有新备份时提示是否更新</string>
     <string name="sys_image_picker">系统图片选择器</string>
+    <string name="read_menu_dark">深色</string>
+    <string name="read_menu_light">浅色</string>
+    <string name="go_to_source_site">去往源站</string>
+    <string name="manage_replace_rule">管理替换规则</string>
+    <string name="read_brightness">亮度</string>
+    <string name="read_background">背景</string>
+    <string name="read_cat_screen">屏幕</string>
+    <string name="read_cat_layout">排版</string>
+    <string name="read_cat_page">翻页与按键</string>
+    <string name="read_cat_text">文本与图片</string>
 </resources>

@@ -3,6 +3,11 @@ package io.legado.app.ui.book.read.config
 import android.annotation.SuppressLint
 import android.content.DialogInterface
 import android.content.SharedPreferences
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.Path
+import android.graphics.Rect
+import android.graphics.RectF
 import android.os.Bundle
 import android.view.Gravity
 import android.view.LayoutInflater
@@ -12,6 +17,9 @@ import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.LinearLayout
 import androidx.preference.Preference
+import androidx.preference.PreferenceGroup
+import androidx.preference.PreferenceGroupAdapter
+import androidx.recyclerview.widget.RecyclerView
 import io.legado.app.R
 import io.legado.app.base.BasePrefDialogFragment
 import io.legado.app.constant.EventBus
@@ -20,11 +28,14 @@ import io.legado.app.help.config.AppConfig
 import io.legado.app.help.config.ReadBookConfig
 import io.legado.app.lib.prefs.fragment.PreferenceFragment
 import io.legado.app.lib.theme.bottomBackground
+import io.legado.app.lib.theme.getPrimaryTextColor
 import io.legado.app.lib.theme.primaryColor
 import io.legado.app.model.ReadBook
 import io.legado.app.ui.book.read.ReadBookActivity
+import io.legado.app.ui.book.read.ReadMenu
 import io.legado.app.ui.book.read.page.provider.ChapterProvider
 import io.legado.app.ui.widget.number.NumberPickerDialog
+import io.legado.app.utils.ColorUtils
 import io.legado.app.utils.canvasrecorder.CanvasRecorderFactory
 import io.legado.app.utils.dpToPx
 import io.legado.app.utils.getPrefBoolean
@@ -45,8 +56,9 @@ class MoreConfigDialog : BasePrefDialogFragment() {
             attr.dimAmount = 0.0f
             attr.gravity = Gravity.BOTTOM
             attributes = attr
-            setLayout(ViewGroup.LayoutParams.MATCH_PARENT, 360.dpToPx())
+            setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
         }
+        placeAboveReadMenu(fixedHeight = true, maxHeightRatio = 0.65f)
     }
 
     override fun onCreateView(
@@ -73,6 +85,7 @@ class MoreConfigDialog : BasePrefDialogFragment() {
 
     override fun onDismiss(dialog: DialogInterface) {
         super.onDismiss(dialog)
+        (activity as? ReadBookActivity)?.onMenuPanelDismiss(ReadMenu.PANEL_SETTING)
         (activity as ReadBookActivity).bottomDialog--
     }
 
@@ -94,6 +107,13 @@ class MoreConfigDialog : BasePrefDialogFragment() {
         override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
             super.onViewCreated(view, savedInstanceState)
             listView.setEdgeEffectColor(primaryColor)
+            // 每组设置画成一张圆角卡片，组内各项之间有分隔线
+            setDivider(null)
+            val bg = requireContext().bottomBackground
+            val textColor = requireContext().getPrimaryTextColor(ColorUtils.isColorLight(bg))
+            listView.addItemDecoration(GroupCardDecoration(textColor))
+            listView.setPadding(0, 0, 0, 12.dpToPx())
+            listView.clipToPadding = false
         }
 
         override fun onResume() {
@@ -209,3 +229,71 @@ class MoreConfigDialog : BasePrefDialogFragment() {
 
     }
 }
+
+/**
+ * 把设置列表中每个分组的设置项画成一张圆角卡片，组内各项之间加分隔线
+ */
+@SuppressLint("RestrictedApi")
+private class GroupCardDecoration(textColor: Int) : RecyclerView.ItemDecoration() {
+
+    private val margin = 12.dpToPx()
+    private val lineInset = 16.dpToPx().toFloat()
+    private val radius = 12.dpToPx().toFloat()
+    private val cardPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = ColorUtils.withAlpha(textColor, 0.06f)
+    }
+    private val linePaint = Paint().apply {
+        color = ColorUtils.withAlpha(textColor, 0.1f)
+        strokeWidth = 1f
+    }
+    private val path = Path()
+    private val rect = RectF()
+
+    /** 该位置是分组标题，或已超出列表范围 */
+    private fun isBoundary(parent: RecyclerView, position: Int): Boolean {
+        val adapter = parent.adapter as? PreferenceGroupAdapter ?: return true
+        if (position < 0 || position >= adapter.itemCount) return true
+        return adapter.getItem(position) is PreferenceGroup
+    }
+
+    override fun getItemOffsets(
+        outRect: Rect,
+        view: View,
+        parent: RecyclerView,
+        state: RecyclerView.State
+    ) {
+        val position = parent.getChildAdapterPosition(view)
+        if (position == RecyclerView.NO_POSITION || isBoundary(parent, position)) return
+        outRect.left = margin
+        outRect.right = margin
+    }
+
+    override fun onDraw(c: Canvas, parent: RecyclerView, state: RecyclerView.State) {
+        for (i in 0 until parent.childCount) {
+            val child = parent.getChildAt(i)
+            val position = parent.getChildAdapterPosition(child)
+            if (position == RecyclerView.NO_POSITION || isBoundary(parent, position)) continue
+            val first = isBoundary(parent, position - 1)
+            val last = isBoundary(parent, position + 1)
+            rect.set(
+                child.left.toFloat(),
+                child.top + child.translationY,
+                child.right.toFloat(),
+                child.bottom + child.translationY
+            )
+            val top = if (first) radius else 0f
+            val bottom = if (last) radius else 0f
+            path.reset()
+            path.addRoundRect(
+                rect,
+                floatArrayOf(top, top, top, top, bottom, bottom, bottom, bottom),
+                Path.Direction.CW
+            )
+            c.drawPath(path, cardPaint)
+            if (!last) {
+                c.drawLine(rect.left + lineInset, rect.bottom, rect.right - lineInset, rect.bottom, linePaint)
+            }
+        }
+    }
+}
+

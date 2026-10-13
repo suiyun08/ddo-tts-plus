@@ -1,54 +1,60 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--带标题、加减按钮和数值的滑杆行：行高 56dp，与阅读菜单面板统一-->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:orientation="horizontal"
-    android:gravity="center">
+    android:gravity="center_vertical"
+    android:minHeight="56dp"
+    android:orientation="horizontal">
 
     <TextView
         android:id="@+id/tv_seek_title"
-        android:layout_width="60dp"
+        android:layout_width="44dp"
         android:layout_height="wrap_content"
         android:singleLine="true"
         android:text="seek"
         android:textColor="@color/primaryText"
+        android:textSize="13sp"
         tools:ignore="HardcodedText" />
 
     <androidx.appcompat.widget.AppCompatImageView
         android:id="@+id/iv_seek_reduce"
-        android:layout_width="24dp"
-        android:layout_height="24dp"
-        android:contentDescription="@string/reduce"
-        android:src="@drawable/ic_reduce"
+        android:layout_width="32dp"
+        android:layout_height="32dp"
         android:background="?android:attr/selectableItemBackgroundBorderless"
+        android:contentDescription="@string/reduce"
+        android:padding="6dp"
+        android:src="@drawable/ic_reduce"
         android:tint="@color/primaryText" />
 
     <io.legado.app.lib.theme.view.ThemeSeekBar
         android:id="@+id/seek_bar"
         android:layout_width="0dp"
-        android:layout_height="25dp"
+        android:layout_height="32dp"
         android:layout_gravity="center_vertical"
-        android:layout_weight="4"
+        android:layout_weight="1"
         android:max="10" />
 
     <androidx.appcompat.widget.AppCompatImageView
         android:id="@+id/iv_seek_plus"
-        android:layout_width="24dp"
-        android:layout_height="24dp"
-        android:contentDescription="@string/plus"
-        android:src="@drawable/ic_add"
+        android:layout_width="32dp"
+        android:layout_height="32dp"
         android:background="?android:attr/selectableItemBackgroundBorderless"
+        android:contentDescription="@string/plus"
+        android:padding="6dp"
+        android:src="@drawable/ic_add"
         android:tint="@color/primaryText" />
 
     <TextView
         android:id="@+id/tv_seek_value"
-        android:layout_width="60dp"
+        android:layout_width="44dp"
         android:layout_height="wrap_content"
-        android:gravity="right"
+        android:gravity="end"
         android:singleLine="true"
         android:text="0"
         android:textColor="@color/primaryText"
-        tools:ignore="HardcodedText,RtlHardcoded" />
+        android:textSize="13sp"
+        tools:ignore="HardcodedText" />
 
 </LinearLayout>

@@ -79,7 +79,19 @@ class TocActivity : VMBaseActivity<ActivityChapterListBinding, TocViewModel>(),
                 tabLayout.visible()
                 false
             }
-            setOnSearchClickListener { tabLayout.gone() }
+            setOnSearchClickListener {
+                if (tabLayout.selectedTabPosition == 1) {
+                    // 书签页：搜索书签
+                    tabLayout.gone()
+                } else {
+                    // 目录页：搜索按钮改为全文搜索，回到阅读页打开
+                    onActionViewCollapsed()
+                    setResult(RESULT_OK, Intent().apply {
+                        putExtra("index", TocActivityResult.OPEN_SEARCH_CONTENT)
+                    })
+                    finish()
+                }
+            }
             setOnQueryTextListener(object : SearchView.OnQueryTextListener {
                 override fun onQueryTextSubmit(query: String): Boolean {
                     viewModel.searchKey = query

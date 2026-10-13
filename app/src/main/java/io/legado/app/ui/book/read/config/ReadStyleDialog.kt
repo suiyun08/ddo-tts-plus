@@ -6,6 +6,7 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
+import android.widget.SeekBar
 import androidx.core.view.get
 import com.github.liuyueyi.quick.transfer.constants.TransType
 import io.legado.app.R
@@ -18,11 +19,15 @@ import io.legado.app.databinding.ItemReadStyleBinding
 import io.legado.app.help.config.AppConfig
 import io.legado.app.help.config.ReadBookConfig
 import io.legado.app.lib.dialogs.selector
+import io.legado.app.lib.theme.Selector
 import io.legado.app.lib.theme.accentColor
 import io.legado.app.lib.theme.bottomBackground
 import io.legado.app.lib.theme.getPrimaryTextColor
 import io.legado.app.model.ReadBook
 import io.legado.app.ui.book.read.ReadBookActivity
+import io.legado.app.ui.book.read.ReadBrightness
+import io.legado.app.ui.widget.seekbar.SeekBarChangeListener
+import io.legado.app.ui.book.read.ReadMenu
 import io.legado.app.ui.font.FontSelectDialog
 import io.legado.app.utils.ChineseUtils
 import io.legado.app.utils.ColorUtils
@@ -52,6 +57,7 @@ class ReadStyleDialog : BaseDialogFragment(R.layout.dialog_read_book_style),
             attributes = attr
             setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
         }
+        placeAboveReadMenu()
     }
 
     override fun onFragmentCreated(view: View, savedInstanceState: Bundle?) {
@@ -63,6 +69,7 @@ class ReadStyleDialog : BaseDialogFragment(R.layout.dialog_read_book_style),
 
     override fun onDismiss(dialog: DialogInterface) {
         super.onDismiss(dialog)
+        (activity as? ReadBookActivity)?.onMenuPanelDismiss(ReadMenu.PANEL_STYLE)
         ReadBookConfig.save()
         (activity as ReadBookActivity).bottomDialog--
     }
@@ -75,6 +82,16 @@ class ReadStyleDialog : BaseDialogFragment(R.layout.dialog_read_book_style),
         tvPageAnim.setTextColor(textColor)
         tvBgTs.setTextColor(textColor)
         tvShareLayout.setTextColor(textColor)
+        tvBrightnessTitle.setTextColor(textColor)
+        ivBrightnessLow.setColorFilter(textColor)
+        ivBrightnessHigh.setColorFilter(textColor)
+        // 色块按钮和分段选择：无描边圆角色块
+        listOf(
+            tvTextFont, textFontWeightConverter, tvTextIndent,
+            chineseConverter, tvPadding, tvTip
+        ).forEach { it.background = MenuPanelStyle.tile(textColor) }
+        MenuPanelStyle.applySegment(rgPageAnim, textColor)
+        initBrightness(textColor)
         dsbTextSize.valueFormat = {
             (it + 5).toString()
         }
@@ -98,6 +115,47 @@ class ReadStyleDialog : BaseDialogFragment(R.layout.dialog_read_book_style),
                 }
             }
         }
+    }
+
+    /**
+     * 亮度：跟随系统时也可以直接拖动，拖动即改为手动亮度
+     */
+    private fun initBrightness(textColor: Int) = binding.run {
+        val activity = activity ?: return@run
+        val accent = requireContext().accentColor
+        val upAutoView = {
+            val auto = ReadBrightness.isAuto(activity)
+            tvBrightnessAuto.setTextColor(if (auto) accent else textColor)
+            tvBrightnessAuto.background = if (auto) {
+                Selector.shapeBuild()
+                    .setCornerRadius(15.dpToPx())
+                    .setDefaultBgColor(ColorUtils.withAlpha(accent, 0.14f))
+                    .create()
+            } else {
+                MenuPanelStyle.tile(textColor, 15)
+            }
+            seekBrightness.alpha = if (auto) 0.5f else 1f
+        }
+        seekBrightness.progress = AppConfig.readBrightness
+        upAutoView()
+        tvBrightnessAuto.setOnClickListener {
+            ReadBrightness.setAuto(activity, !ReadBrightness.isAuto(activity))
+            upAutoView()
+        }
+        seekBrightness.setOnSeekBarChangeListener(object : SeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
+                if (!fromUser) return
+                if (ReadBrightness.isAuto(activity)) {
+                    ReadBrightness.setAuto(activity, false)
+                    upAutoView()
+                }
+                ReadBrightness.apply(activity, progress)
+            }
+
+            override fun onStopTrackingTouch(seekBar: SeekBar) {
+                AppConfig.readBrightness = seekBar.progress
+            }
+        })
     }
 
     private fun initData() {
@@ -126,8 +184,8 @@ class ReadStyleDialog : BaseDialogFragment(R.layout.dialog_read_book_style),
                 postEvent(EventBus.UP_CONFIG, arrayListOf(8, 5))
             }
         }
+        // 弹出下一级时保留本面板，关闭下一级后回到这里
         tvPadding.setOnClickListener {
-            dismissAllowingStateLoss()
             callBack?.showPaddingConfig()
         }
         tvTip.setOnClickListener {
@@ -177,7 +235,6 @@ class ReadStyleDialog : BaseDialogFragment(R.layout.dialog_read_book_style),
     }
 
     private fun showBgTextConfig(index: Int): Boolean {
-        dismissAllowingStateLoss()
         changeBgTextConfig(index)
         callBack?.showBgTextConfig()
         return true

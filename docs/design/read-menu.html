@@ -1,0 +1,627 @@
+<!doctype html>
+<!--
+Interface: 阅读+ 安卓阅读页菜单（改版设计稿）
+Goal: 阅读时快速调整亮度、字号、排版、翻页和阅读设置，不打断阅读、不迷路
+Requirement changes:
+- 顶部章节名/网址/书源按钮行移除；「去往源站」和书源操作（登录/购买/编辑/禁用）、替换净化移入右上角「⋮」
+- 左侧竖向亮度条移除；亮度移到「界面」面板第一行，拖动即自动关闭「跟随系统」（现在默认跟随系统导致滑杆禁用、看起来失效）
+- 四个悬浮按钮移除：深色模式→底部栏第 5 个按钮；替换净化→「⋮」；自动翻页→章节进度条右侧；全文搜索→目录页搜索按钮
+- 进度行去掉「上一章 / 下一章」
+- 底部一级菜单常驻；二级面板在其上方展开，对应按钮高亮；三级弹层叠在二级之上，关闭后回到二级
+- 点击空白处每次关闭最上面一层
+- 面板高度随内容伸缩，最高约屏幕 70%，超出在面板内滚动；所有滑杆行 56px 高、左右图标、右侧数值
+Key assumptions:
+- 用户说的「亮度按钮」是现在第 4 个悬浮按钮（太阳图标，实际是深色模式开关）
+- 朗读按钮行为不变：点击开始朗读并展开朗读面板
+Covered states:
+- 菜单收起 / 一级菜单 / 二级面板（朗读、界面、设置）/ 三级弹层（字体、缩进、简繁、粗细、边距、信息、翻页阈值等）
+- 「⋮」更多菜单、深色模式、自动翻页开启、目录页（目录/书签搜索）
+-->
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>阅读页菜单设计稿</title>
+<style>
+:root {
+  --accent: #1d7cf2;
+  --paper: #f3ecdc;
+  --ink: #2b2620;
+  --panel: #ffffff;
+  --panel-2: #f4f5f7;
+  --line: #ececec;
+  --text: #1f1f1f;
+  --text-2: #8a8a8a;
+  --mask: rgba(0, 0, 0, 0.12);
+  --page-bg: #e7e7ea;
+}
+.night {
+  --paper: #1c1c1e;
+  --ink: #8d8a84;
+  --panel: #252527;
+  --panel-2: #313134;
+  --line: #333336;
+  --text: #e6e6e6;
+  --text-2: #8c8c90;
+  --mask: rgba(0, 0, 0, 0.35);
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 32px;
+  padding: 24px 16px;
+  background: var(--page-bg);
+  font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+  color: #333;
+}
+.notes { max-width: 300px; font-size: 13px; line-height: 1.7; color: #555; }
+.notes h1 { font-size: 16px; margin: 0 0 8px; color: #222; }
+.notes ol { padding-left: 18px; margin: 6px 0; }
+@media (max-width: 760px) { .notes { display: none; } body { padding: 0; } }
+
+.phone {
+  position: relative;
+  width: 390px;
+  max-width: 100vw;
+  height: 844px;
+  max-height: 100vh;
+  border-radius: 36px;
+  overflow: hidden;
+  background: var(--paper);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+  user-select: none;
+}
+@media (max-width: 760px) { .phone { border-radius: 0; height: 100vh; } }
+
+/* 正文 */
+.page {
+  position: absolute; inset: 0;
+  padding: 54px 26px 40px;
+  color: var(--ink);
+  font-size: 18px; line-height: 1.85;
+  font-family: "Songti SC", "SimSun", serif;
+  overflow: hidden;
+  cursor: pointer;
+}
+.page .chapter-title { font-size: 22px; font-weight: 600; margin-bottom: 18px; }
+.page p { margin: 0 0 12px; text-indent: 2em; }
+.page-foot { position: absolute; left: 26px; right: 26px; bottom: 14px; font-size: 11px; color: var(--ink); opacity: .6; display: flex; justify-content: space-between; font-family: -apple-system, sans-serif; }
+
+/* 一级菜单：顶部栏 + 底部栏 */
+.top-bar, .bottom-bar {
+  position: absolute; left: 0; right: 0; z-index: 20;
+  background: var(--panel); color: var(--text);
+  transition: transform .2s ease;
+}
+.top-bar { top: 0; padding: 40px 6px 0; height: 92px; display: flex; align-items: center; box-shadow: 0 1px 0 var(--line); transform: translateY(-100%); }
+.bottom-bar { bottom: 0; padding: 4px 0 18px; box-shadow: 0 -1px 0 var(--line); transform: translateY(100%); }
+.menu-open .top-bar, .menu-open .bottom-bar { transform: none; }
+.icon-btn { width: 44px; height: 44px; border: 0; background: none; color: inherit; border-radius: 22px; font-size: 20px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+.icon-btn:hover { background: var(--panel-2); }
+.icon-btn:focus-visible, button:focus-visible, .row:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.top-bar .book-name { flex: 1; font-size: 17px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 4px; }
+
+.progress-row { display: flex; align-items: center; gap: 10px; padding: 8px 16px 6px; }
+.progress-row .chapter { position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); font-size: 12px; color: #fff; background: rgba(0,0,0,.75); padding: 6px 12px; border-radius: 14px; white-space: nowrap; display: none; z-index: 30; }
+.progress-row .chapter.show { display: block; }
+.tabs { display: flex; justify-content: space-around; padding-top: 2px; }
+.tab { flex: 1; border: 0; background: none; color: var(--text); padding: 6px 0 2px; display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 11px; cursor: pointer; border-radius: 10px; }
+.tab .ico { font-size: 20px; line-height: 24px; }
+.tab.active { color: var(--accent); }
+.tab.active .ico { background: color-mix(in srgb, var(--accent) 14%, transparent); border-radius: 12px; padding: 0 14px; }
+
+/* 自动翻页按钮 */
+.auto-btn { flex: none; height: 32px; padding: 0 12px; border-radius: 16px; border: 0; background: var(--panel-2); color: var(--text); font-size: 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
+.auto-btn.on { background: var(--accent); color: #fff; }
+
+/* 滑杆 */
+input[type=range] { -webkit-appearance: none; appearance: none; flex: 1; height: 28px; background: none; margin: 0; cursor: pointer; }
+input[type=range]::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: linear-gradient(var(--accent), var(--accent)) 0 / var(--fill, 50%) 100% no-repeat, var(--line); }
+input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 22px; margin-top: -9px; border-radius: 50%; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.3); }
+input[type=range]::-moz-range-track { height: 4px; border-radius: 2px; background: var(--line); }
+input[type=range]::-moz-range-progress { height: 4px; border-radius: 2px; background: var(--accent); }
+input[type=range]::-moz-range-thumb { width: 22px; height: 22px; border: 0; border-radius: 50%; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.3); }
+input[type=range]:disabled { opacity: .4; }
+
+/* 二级面板 */
+.mask { position: absolute; inset: 0; z-index: 15; display: none; }
+.panel {
+  position: absolute; left: 0; right: 0; z-index: 18;
+  background: var(--panel); color: var(--text);
+  border-radius: 16px 16px 0 0;
+  box-shadow: 0 -6px 24px rgba(0, 0, 0, .12);
+  max-height: 70%;
+  display: flex; flex-direction: column;
+  transform: translateY(110%); transition: transform .22s ease;
+}
+.panel.show { transform: none; }
+.panel-head { flex: none; display: flex; align-items: center; justify-content: space-between; padding: 14px 16px 6px 20px; font-size: 15px; font-weight: 600; }
+.panel-body { flex: 1; min-height: 0; overflow: auto; padding: 0 16px 14px; }
+
+/* 控件行 */
+.slider-row { display: flex; align-items: center; gap: 10px; height: 56px; }
+.slider-row .label { min-width: 36px; white-space: nowrap; font-size: 13px; color: var(--text-2); flex: none; }
+.slider-row .end { width: 22px; text-align: center; color: var(--text-2); font-size: 13px; flex: none; }
+.slider-row .value { min-width: 38px; white-space: nowrap; text-align: right; font-size: 13px; font-variant-numeric: tabular-nums; flex: none; }
+.chip { flex: none; height: 30px; padding: 0 12px; border-radius: 15px; border: 1px solid var(--line); background: var(--panel-2); color: var(--text); font-size: 12px; cursor: pointer; }
+.chip.on { background: color-mix(in srgb, var(--accent) 12%, transparent); border-color: var(--accent); color: var(--accent); }
+
+.group { background: var(--panel-2); border-radius: 12px; padding: 4px 14px; margin-top: 10px; }
+.group-title { font-size: 12px; color: var(--text-2); margin: 16px 4px 6px; }
+.group-title:first-child { margin-top: 4px; }
+.seg { display: flex; background: var(--panel-2); border-radius: 10px; padding: 3px; gap: 3px; height: 40px; }
+.seg button { flex: 1; border: 0; border-radius: 8px; background: none; color: var(--text); font-size: 13px; cursor: pointer; }
+.seg button.on { background: var(--panel); color: var(--accent); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+.field-label { font-size: 12px; color: var(--text-2); margin: 14px 2px 8px; }
+
+.swatches { display: flex; gap: 12px; overflow-x: auto; padding: 4px 2px 6px; }
+.swatch { flex: none; width: 52px; height: 52px; border-radius: 12px; border: 2px solid transparent; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 15px; font-family: serif; }
+.swatch.on { border-color: var(--accent); }
+
+.tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 14px; }
+.tile { height: 56px; border: 0; border-radius: 12px; background: var(--panel-2); color: var(--text); cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: 13px; }
+.tile small { color: var(--text-2); font-size: 11px; }
+
+/* 列表行（设置、三级弹层） */
+.row { display: flex; align-items: center; min-height: 52px; gap: 12px; border-bottom: 1px solid var(--line); cursor: pointer; }
+.group .row:last-child { border-bottom: 0; }
+.row .t { flex: 1; font-size: 14px; }
+.row .t small { display: block; font-size: 11px; color: var(--text-2); margin-top: 2px; }
+.row .v { font-size: 13px; color: var(--text-2); }
+.row .v::after { content: " ›"; }
+.switch { flex: none; width: 44px; height: 26px; border-radius: 13px; background: #c9c9cc; position: relative; transition: background .15s; }
+.switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; transition: transform .15s; box-shadow: 0 1px 2px rgba(0,0,0,.2); }
+.switch.on { background: var(--accent); }
+.switch.on::after { transform: translateX(18px); }
+
+/* 三级弹层 */
+.sheet3 {
+  position: absolute; left: 10px; right: 10px; z-index: 30;
+  background: var(--panel); color: var(--text);
+  border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,.28);
+  max-height: 60%; display: flex; flex-direction: column;
+  opacity: 0; transform: translateY(16px) scale(.98); pointer-events: none; transition: opacity .18s, transform .18s;
+}
+.sheet3.show { opacity: 1; transform: none; pointer-events: auto; }
+.dim2 { position: absolute; left: 0; right: 0; bottom: 0; z-index: 25; background: var(--mask); display: none; }
+
+/* 更多菜单 */
+.more { position: absolute; top: 84px; right: 8px; width: 216px; z-index: 40; background: var(--panel); color: var(--text); border-radius: 14px; box-shadow: 0 8px 30px rgba(0,0,0,.25); max-height: 70%; overflow: auto; padding: 6px 0; display: none; }
+.more.show { display: block; }
+.more .sec { font-size: 11px; color: var(--text-2); padding: 8px 16px 2px; }
+.more .item { display: flex; align-items: center; justify-content: space-between; width: 100%; border: 0; background: none; color: inherit; text-align: left; padding: 0 16px; height: 42px; font-size: 14px; cursor: pointer; }
+.more .item:hover { background: var(--panel-2); }
+.more hr { border: 0; border-top: 1px solid var(--line); margin: 4px 0; }
+.more .check { color: var(--accent); font-size: 13px; }
+
+/* 目录页 */
+.toc { position: absolute; inset: 0; z-index: 50; background: var(--panel); color: var(--text); display: none; flex-direction: column; }
+.toc.show { display: flex; }
+.toc-head { padding: 40px 6px 0; height: 92px; display: flex; align-items: center; border-bottom: 1px solid var(--line); }
+.toc-tabs { flex: 1; display: flex; justify-content: center; gap: 24px; }
+.toc-tabs button { border: 0; background: none; color: var(--text-2); font-size: 15px; padding: 8px 2px; cursor: pointer; border-bottom: 2px solid transparent; }
+.toc-tabs button.on { color: var(--text); border-color: var(--accent); font-weight: 600; }
+.toc-search { display: none; padding: 10px 16px; border-bottom: 1px solid var(--line); }
+.toc-search input { width: 100%; height: 36px; border-radius: 18px; border: 0; background: var(--panel-2); padding: 0 14px; color: var(--text); font-size: 14px; }
+.toc-list { flex: 1; overflow: auto; padding: 0 16px; }
+.toc-list .row { cursor: default; }
+.toc-list .read { color: var(--text-2); }
+.toc-list .cur { color: var(--accent); font-weight: 600; }
+
+.toast { position: absolute; left: 50%; bottom: 200px; transform: translateX(-50%); z-index: 60; background: rgba(0,0,0,.78); color: #fff; padding: 8px 16px; border-radius: 18px; font-size: 13px; opacity: 0; transition: opacity .2s; pointer-events: none; white-space: nowrap; }
+.toast.show { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<aside class="notes">
+  <h1>阅读页菜单改版 · 设计稿</h1>
+  点正文中间呼出菜单，按钮都能点。
+  <ol>
+    <li>底部栏常驻，点「朗读 / 界面 / 设置」在上方展开二级面板，按钮高亮</li>
+    <li>「界面」里点「字体、边距、信息…」弹出三级，关掉回到二级</li>
+    <li>点空白处每次关最上面一层</li>
+    <li>「⋮」里有去往源站、书源操作、替换净化</li>
+    <li>进度条右边是自动翻页；「深色」在底部栏</li>
+    <li>目录页：目录标签的搜索=全文搜索，书签标签的搜索=搜书签</li>
+  </ol>
+  配色先用中性蓝做强调色，实际跟随 App 主题色。
+</aside>
+
+<div class="phone" id="phone">
+  <div class="page" id="page" role="button" tabindex="0" aria-label="正文，点击呼出或关闭菜单">
+    <div class="chapter-title">第十六章 我就是王法</div>
+    <p>城门外的风比往常更冷一些。林砚把斗笠往下压了压，牵着马沿护城河慢慢走，河面上漂着几片枯叶，被风推着打转。</p>
+    <p>守门的兵卒认出了他，远远地拱了拱手，却没有像从前那样迎上来。林砚心里明白，京城里的消息总是比人走得快。</p>
+    <p>“三天之内，户部的账要给我一个交代。”他在茶棚前停下，把一锭银子放在桌上，“这话不是我说的，是圣旨说的。”</p>
+    <p>茶棚老板低着头擦碗，手却一直在抖。林砚也不催，自顾自倒了一碗粗茶，看着城门口来来往往的车马。</p>
+    <p>日头偏西的时候，街口终于出现了一顶青布小轿。轿帘掀开一角，露出半张熟悉的脸。</p>
+    <p>林砚放下茶碗，站起身来，嘴角带着一点笑意：“王大人，等你很久了。”</p>
+    <div class="page-foot"><span>第十六章 我就是王法</span><span>12/31 · 38%</span></div>
+  </div>
+
+  <div class="mask" id="mask"></div>
+
+  <!-- 顶部栏 -->
+  <header class="top-bar" aria-label="顶部工具栏">
+    <button class="icon-btn" aria-label="返回">‹</button>
+    <div class="book-name">诡秘之主：长夜将尽的城</div>
+    <button class="icon-btn" aria-label="换源" title="换源">⇄</button>
+    <button class="icon-btn" aria-label="刷新" title="刷新">↻</button>
+    <button class="icon-btn" aria-label="离线缓存" title="离线缓存">⤓</button>
+    <button class="icon-btn" id="moreBtn" aria-label="更多" aria-haspopup="menu">⋮</button>
+  </header>
+
+  <!-- 「⋮」更多菜单 -->
+  <div class="more" id="more" role="menu" aria-label="更多">
+    <div class="sec">书源</div>
+    <button class="item" data-toast="已在浏览器打开本章源站页面">去往源站 <span class="check">↗</span></button>
+    <button class="item" data-toast="打开书源登录页">登录书源</button>
+    <button class="item" data-toast="打开编辑书源">编辑书源</button>
+    <button class="item" data-toast="已禁用该书源">禁用书源</button>
+    <hr>
+    <div class="sec">内容</div>
+    <button class="item toggle" data-on="1">替换净化 <span class="check">✓</span></button>
+    <button class="item" data-toast="打开替换规则管理">管理替换规则</button>
+    <button class="item" data-toast="显示本章起效的替换">起效的替换</button>
+    <button class="item toggle" data-on="1">移除重复标题 <span class="check">✓</span></button>
+    <button class="item toggle" data-on="0">重新分段 <span class="check"></span></button>
+    <button class="item" data-toast="打开编辑内容">编辑内容</button>
+    <button class="item" data-toast="已反转本章内容">反转内容</button>
+    <button class="item" data-toast="打开图片样式">图片样式</button>
+    <hr>
+    <div class="sec">本书</div>
+    <button class="item" data-toast="已给当前位置加书签">添加书签</button>
+    <button class="item" data-toast="打开本书翻页动画">翻页动画（本书）</button>
+    <button class="item" data-toast="正在更新目录">更新目录</button>
+    <button class="item" data-toast="打开模拟追读">模拟追读</button>
+    <hr>
+    <button class="item" data-toast="打开日志">日志</button>
+    <button class="item" data-toast="打开帮助">帮助</button>
+  </div>
+
+  <!-- 二级：朗读 -->
+  <section class="panel" id="panel-aloud" aria-label="朗读面板">
+    <div class="panel-head">朗读<button class="icon-btn" data-close aria-label="收起">⌄</button></div>
+    <div class="panel-body">
+      <div style="display:flex;justify-content:center;gap:18px;padding:6px 0 4px">
+        <button class="icon-btn" aria-label="上一段">⏮</button>
+        <button class="icon-btn" style="width:56px;height:56px;background:var(--accent);color:#fff;font-size:24px" aria-label="暂停">❚❚</button>
+        <button class="icon-btn" aria-label="下一段">⏭</button>
+        <button class="icon-btn" aria-label="停止" data-toast="已停止朗读">■</button>
+      </div>
+      <div class="slider-row"><span class="label">语速</span><span class="end">慢</span><input type="range" min="1" max="20" value="10"><span class="end">快</span><span class="value">1.0×</span></div>
+      <div class="slider-row"><span class="label">定时</span><span class="end">0</span><input type="range" min="0" max="180" value="30" data-unit="分钟"><span class="end">3h</span><span class="value">30分钟</span></div>
+      <div class="tiles">
+        <button class="tile" data-l3="voice">语音<small>晓晓</small></button>
+        <button class="tile" data-l3="engine">朗读引擎<small>Edge</small></button>
+        <button class="tile" data-toast="已切到后台朗读">后台朗读<small>返回桌面</small></button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 二级：界面 -->
+  <section class="panel" id="panel-style" aria-label="界面面板">
+    <div class="panel-head">界面<button class="icon-btn" data-close aria-label="收起">⌄</button></div>
+    <div class="panel-body">
+      <div class="slider-row">
+        <span class="label">亮度</span>
+        <span class="end">☼</span>
+        <input type="range" id="brightness" min="1" max="255" value="140" aria-label="亮度" disabled>
+        <span class="end" style="font-size:17px">☀</span>
+        <button class="chip on" id="followSys" aria-pressed="true">跟随系统</button>
+      </div>
+      <div class="slider-row"><span class="label">字号</span><span class="end">A</span><input type="range" min="10" max="40" value="20"><span class="end" style="font-size:17px">A</span><span class="value">20</span></div>
+      <div class="slider-row"><span class="label">行距</span><span class="end">≡</span><input type="range" min="0" max="20" value="8"><span class="end">☰</span><span class="value">8</span></div>
+      <div class="slider-row"><span class="label">段距</span><span class="end">≡</span><input type="range" min="0" max="20" value="6"><span class="end">☰</span><span class="value">6</span></div>
+      <div class="slider-row"><span class="label">字距</span><span class="end">ab</span><input type="range" min="0" max="100" value="50"><span class="end">a b</span><span class="value">0</span></div>
+
+      <div class="field-label">背景</div>
+      <div class="swatches" role="radiogroup" aria-label="背景">
+        <button class="swatch on" style="background:#f3ecdc;color:#2b2620">文</button>
+        <button class="swatch" style="background:#ffffff;color:#222">文</button>
+        <button class="swatch" style="background:#e3eddc;color:#2a3a24">文</button>
+        <button class="swatch" style="background:#dfe9f0;color:#22313d">文</button>
+        <button class="swatch" style="background:#3b3f45;color:#c8c8c8">文</button>
+        <button class="swatch" style="background:#1c1c1e;color:#8d8a84">文</button>
+        <button class="swatch" data-l3="bg" style="background:var(--panel-2);color:var(--text-2);font-family:sans-serif;font-size:12px">自定义</button>
+      </div>
+
+      <div class="field-label">翻页方式</div>
+      <div class="seg" role="radiogroup" aria-label="翻页方式">
+        <button>覆盖</button><button class="on">仿真</button><button>滑动</button><button>滚动</button><button>无</button>
+      </div>
+
+      <div class="tiles">
+        <button class="tile" data-l3="font">字体<small>系统默认</small></button>
+        <button class="tile" data-l3="weight">粗细<small>正常</small></button>
+        <button class="tile" data-l3="indent">缩进<small>两字</small></button>
+        <button class="tile" data-l3="convert">简繁<small>不转换</small></button>
+        <button class="tile" data-l3="padding">边距<small>调整</small></button>
+        <button class="tile" data-l3="tip">页眉页脚<small>信息</small></button>
+      </div>
+      <div class="group" style="margin-top:14px">
+        <div class="row" data-switch><span class="t">共用排版<small>所有背景使用同一套字号、间距</small></span><span class="switch on"></span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 二级：设置 -->
+  <section class="panel" id="panel-setting" aria-label="设置面板">
+    <div class="panel-head">设置<button class="icon-btn" data-close aria-label="收起">⌄</button></div>
+    <div class="panel-body">
+      <div class="group-title">屏幕</div>
+      <div class="group">
+        <div class="row" data-l3="orientation"><span class="t">屏幕方向</span><span class="v">跟随系统</span></div>
+        <div class="row" data-l3="timeout"><span class="t">屏幕超时</span><span class="v">10 分钟</span></div>
+        <div class="row" data-switch><span class="t">隐藏状态栏</span><span class="switch on"></span></div>
+        <div class="row" data-switch><span class="t">隐藏导航栏</span><span class="switch"></span></div>
+        <div class="row" data-switch><span class="t">扩展到刘海</span><span class="switch"></span></div>
+        <div class="row" data-switch><span class="t">填充刘海区域</span><span class="switch"></span></div>
+        <div class="row" data-l3="double"><span class="t">平板/横屏双页</span><span class="v">自动</span></div>
+      </div>
+      <div class="group-title">排版</div>
+      <div class="group">
+        <div class="row" data-switch><span class="t">使用自定义中文分行</span><span class="switch"></span></div>
+        <div class="row" data-switch><span class="t">文字两端对齐</span><span class="switch on"></span></div>
+        <div class="row" data-switch><span class="t">文字底部对齐</span><span class="switch"></span></div>
+      </div>
+      <div class="group-title">翻页与按键</div>
+      <div class="group">
+        <div class="row" data-l3="progress"><span class="t">进度条行为</span><span class="v">页内进度</span></div>
+        <div class="row" data-l3="click"><span class="t">点击区域设置</span><span class="v">调整</span></div>
+        <div class="row" data-l3="slop"><span class="t">滑动翻页阈值</span><span class="v">默认</span></div>
+        <div class="row" data-switch><span class="t">禁用滚动点击动画</span><span class="switch"></span></div>
+        <div class="row" data-switch><span class="t">音量键翻页</span><span class="switch on"></span></div>
+        <div class="row" data-switch><span class="t">朗读时音量键翻页</span><span class="switch"></span></div>
+        <div class="row" data-switch><span class="t">按键长按翻页</span><span class="switch"></span></div>
+        <div class="row" data-switch><span class="t">鼠标滚轮翻页</span><span class="switch on"></span></div>
+        <div class="row" data-l3="keys"><span class="t">自定义翻页按键</span><span class="v">设置</span></div>
+        <div class="row" data-switch><span class="t">禁用返回键</span><span class="switch"></span></div>
+      </div>
+      <div class="group-title">文本与图片</div>
+      <div class="group">
+        <div class="row" data-switch><span class="t">长按选择文本</span><span class="switch on"></span></div>
+        <div class="row" data-switch><span class="t">展开文本选择菜单</span><span class="switch"></span></div>
+        <div class="row" data-switch><span class="t">点击预览图片</span><span class="switch on"></span></div>
+      </div>
+      <div class="group-title">其他</div>
+      <div class="group">
+        <div class="row" data-switch><span class="t">自动换源<small>当前书源失效时自动换一个</small></span><span class="switch"></span></div>
+        <div class="row" data-switch><span class="t">工具栏样式跟随页面</span><span class="switch on"></span></div>
+        <div class="row" data-switch><span class="t">启用绘制优化</span><span class="switch on"></span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 底部栏（一级菜单） -->
+  <nav class="bottom-bar" aria-label="底部菜单">
+    <div class="progress-row" style="position:relative">
+      <span class="chapter" id="chapterTip">第十六章 我就是王法 · 第 12/31 页</span>
+      <input type="range" id="progress" min="1" max="31" value="12" aria-label="章节内进度">
+      <button class="auto-btn" id="autoBtn" aria-pressed="false">▶ 自动翻页</button>
+    </div>
+    <div class="tabs" role="tablist">
+      <button class="tab" data-toc><span class="ico">☰</span>目录</button>
+      <button class="tab" data-panel="aloud"><span class="ico">🎧</span>朗读</button>
+      <button class="tab" data-panel="style"><span class="ico">Aa</span>界面</button>
+      <button class="tab" data-panel="setting"><span class="ico">⚙</span>设置</button>
+      <button class="tab" id="nightBtn"><span class="ico">☾</span><span id="nightText">深色</span></button>
+    </div>
+  </nav>
+
+  <!-- 三级弹层 -->
+  <div class="dim2" id="dim2"></div>
+  <section class="sheet3" id="sheet3" role="dialog" aria-modal="false" aria-labelledby="sheet3Title">
+    <div class="panel-head"><span id="sheet3Title">边距</span><button class="icon-btn" id="sheet3Close" aria-label="关闭，返回上一层">✕</button></div>
+    <div class="panel-body" id="sheet3Body"></div>
+  </section>
+
+  <!-- 目录页 -->
+  <section class="toc" id="toc" aria-label="目录">
+    <div class="toc-head">
+      <button class="icon-btn" id="tocBack" aria-label="返回">‹</button>
+      <div class="toc-tabs"><button class="on" data-toctab="toc">目录</button><button data-toctab="mark">书签</button></div>
+      <button class="icon-btn" id="tocSearch" aria-label="全文搜索" title="全文搜索">⌕</button>
+    </div>
+    <div class="toc-search" id="tocSearchBox"><input placeholder="搜索书签内容或备注" aria-label="搜索书签"></div>
+    <div class="toc-list" id="tocList"></div>
+  </section>
+
+  <div class="toast" id="toast" role="status"></div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s)
+const $$ = s => [...document.querySelectorAll(s)]
+const phone = $('#phone')
+const state = { menu: false, panel: null, l3: null, more: false }
+
+const toast = msg => {
+  const t = $('#toast'); t.textContent = msg; t.classList.add('show')
+  clearTimeout(toast.timer); toast.timer = setTimeout(() => t.classList.remove('show'), 1600)
+}
+
+// 二级面板贴在底部栏上方
+const placePanels = () => {
+  const barH = $('.bottom-bar').offsetHeight
+  $$('.panel').forEach(p => (p.style.bottom = barH + 'px'))
+  $('#dim2').style.top = '0'
+}
+
+const render = () => {
+  phone.classList.toggle('menu-open', state.menu)
+  $$('.panel').forEach(p => p.classList.toggle('show', p.id === 'panel-' + state.panel))
+  $$('.tab[data-panel]').forEach(t => t.classList.toggle('active', t.dataset.panel === state.panel))
+  $('#more').classList.toggle('show', state.more)
+  $('#sheet3').classList.toggle('show', !!state.l3)
+  $('#dim2').style.display = state.l3 ? 'block' : 'none'
+  if (state.l3) {
+    const open = $('.panel.show')
+    const barH = $('.bottom-bar').offsetHeight
+    $('#sheet3').style.bottom = barH + 14 + 'px'
+  }
+}
+
+// 点空白处：每次关闭最上面一层
+const closeTop = () => {
+  if (state.more) state.more = false
+  else if (state.l3) state.l3 = null
+  else if (state.panel) state.panel = null
+  else state.menu = false
+  render()
+}
+$('#page').addEventListener('click', () => {
+  if (!state.menu) { state.menu = true; render(); return }
+  closeTop()
+})
+$('#page').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('#page').click() } })
+$('#dim2').addEventListener('click', closeTop)
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && state.menu) closeTop() })
+
+// 底部栏
+$$('.tab[data-panel]').forEach(tab => tab.addEventListener('click', () => {
+  state.more = false; state.l3 = null
+  state.panel = state.panel === tab.dataset.panel ? null : tab.dataset.panel
+  render()
+}))
+$$('[data-close]').forEach(b => b.addEventListener('click', () => { state.panel = null; state.l3 = null; render() }))
+$('#nightBtn').addEventListener('click', () => {
+  const night = phone.classList.toggle('night')
+  $('#nightText').textContent = night ? '浅色' : '深色'
+  $('#nightBtn .ico').textContent = night ? '☀' : '☾'
+})
+$('#autoBtn').addEventListener('click', () => {
+  const on = $('#autoBtn').classList.toggle('on')
+  $('#autoBtn').setAttribute('aria-pressed', on)
+  $('#autoBtn').textContent = on ? '❚❚ 停止翻页' : '▶ 自动翻页'
+  if (on) { state.menu = false; state.panel = null; render(); toast('自动翻页已开始，点正文中间可调速度或停止') }
+})
+
+// 「⋮」
+$('#moreBtn').addEventListener('click', e => { e.stopPropagation(); state.more = !state.more; render() })
+$$('.more .item').forEach(item => item.addEventListener('click', () => {
+  if (item.classList.contains('toggle')) {
+    const on = item.dataset.on !== '1'; item.dataset.on = on ? '1' : '0'
+    item.querySelector('.check').textContent = on ? '✓' : ''
+    toast((on ? '已开启：' : '已关闭：') + item.firstChild.textContent.trim())
+    return
+  }
+  state.more = false; render(); toast(item.dataset.toast)
+}))
+
+// 滑杆填充与数值
+const fill = r => r.style.setProperty('--fill', ((r.value - r.min) / (r.max - r.min)) * 100 + '%')
+$$('input[type=range]').forEach(r => {
+  fill(r)
+  r.addEventListener('input', () => {
+    fill(r)
+    const v = r.parentElement.querySelector('.value')
+    if (v && r.dataset.unit) v.textContent = r.value + r.dataset.unit
+    else if (v) v.textContent = r.parentElement.querySelector('.label')?.textContent === '语速' ? (r.value / 10).toFixed(1) + '×' : r.value
+  })
+})
+// 拖动进度条时才显示所在位置
+$('#progress').addEventListener('input', e => {
+  const tip = $('#chapterTip'); tip.textContent = `第十六章 我就是王法 · 第 ${e.target.value}/31 页`; tip.classList.add('show')
+  clearTimeout(tip.timer); tip.timer = setTimeout(() => tip.classList.remove('show'), 1200)
+})
+
+// 亮度：跟随系统时滑杆也能拖，拖动即关闭跟随系统
+const brightness = $('#brightness')
+brightness.disabled = false
+const setFollow = on => {
+  $('#followSys').classList.toggle('on', on); $('#followSys').setAttribute('aria-pressed', on)
+  brightness.style.opacity = on ? 0.45 : 1
+}
+setFollow(true)
+brightness.addEventListener('input', () => {
+  if ($('#followSys').classList.contains('on')) { setFollow(false); toast('已改为手动亮度') }
+  phone.style.filter = `brightness(${0.55 + brightness.value / 255 * 0.5})`
+})
+$('#followSys').addEventListener('click', () => {
+  const on = !$('#followSys').classList.contains('on'); setFollow(on)
+  phone.style.filter = on ? '' : `brightness(${0.55 + brightness.value / 255 * 0.5})`
+})
+
+// 开关、单选
+document.addEventListener('click', e => {
+  const row = e.target.closest('[data-switch]')
+  if (row) row.querySelector('.switch').classList.toggle('on')
+  const seg = e.target.closest('.seg button')
+  if (seg) { seg.parentElement.querySelectorAll('button').forEach(b => b.classList.toggle('on', b === seg)) }
+  const sw = e.target.closest('.swatch:not([data-l3])')
+  if (sw) { sw.parentElement.querySelectorAll('.swatch').forEach(b => b.classList.toggle('on', b === sw)); $('#page').style.background = sw.style.background; $('#page').style.color = sw.style.color }
+  const tt = e.target.closest('[data-toast]:not(.item)')
+  if (tt) toast(tt.dataset.toast)
+})
+
+// 三级弹层内容
+const options = (title, list, cur) => ({ title, html: `<div class="group">${list.map(x => `<div class="row" data-pick><span class="t">${x}</span>${x === cur ? '<span class="check" style="color:var(--accent)">✓</span>' : ''}</div>`).join('')}</div>` })
+const L3 = {
+  font: options('字体', ['系统默认', '思源宋体', '霞鹜文楷', '方正书宋', '导入字体…'], '系统默认'),
+  weight: options('粗细', ['细', '正常', '粗'], '正常'),
+  indent: options('缩进', ['无缩进', '一字', '两字', '三字', '四字'], '两字'),
+  convert: options('简繁', ['不转换', '简体转繁体', '繁体转简体'], '不转换'),
+  orientation: options('屏幕方向', ['跟随系统', '竖屏', '横屏', '随传感器'], '跟随系统'),
+  timeout: options('屏幕超时', ['跟随系统', '1 分钟', '5 分钟', '10 分钟', '常亮'], '10 分钟'),
+  double: options('平板/横屏双页', ['自动', '始终单页', '始终双页'], '自动'),
+  progress: options('进度条行为', ['页内进度', '章节进度'], '页内进度'),
+  voice: options('语音', ['晓晓（女）', '云希（男）', '晓伊（女）', '云健（男）'], '晓晓（女）'),
+  engine: options('朗读引擎', ['Edge 在线语音', '系统 TTS', '自定义 HTTP 语音'], 'Edge 在线语音'),
+  padding: { title: '边距', html: ['上', '下', '左', '右'].map(d => `<div class="slider-row"><span class="label">${d}边距</span><input type="range" min="0" max="60" value="${d === '上' || d === '下' ? 24 : 16}"><span class="value">${d === '上' || d === '下' ? 24 : 16}</span></div>`).join('') + '<div class="field-label">页眉 / 页脚边距在「页眉页脚」里调</div>' },
+  tip: { title: '页眉页脚', html: `<div class="group">${['页眉左：书名', '页眉右：时间', '页脚左：章节名', '页脚右：页码与进度'].map(x => `<div class="row" data-pick><span class="t">${x.split('：')[0]}</span><span class="v">${x.split('：')[1]}</span></div>`).join('')}<div class="row" data-switch><span class="t">显示分隔线</span><span class="switch on"></span></div></div>` },
+  bg: { title: '自定义背景', html: '<div class="tiles"><button class="tile">文字颜色<small>#2B2620</small></button><button class="tile">背景颜色<small>#F3ECDC</small></button><button class="tile">背景图片<small>选择</small></button></div><div class="slider-row" style="margin-top:6px"><span class="label">透明</span><input type="range" min="0" max="100" value="100"><span class="value">100</span></div>' },
+  click: { title: '点击区域设置', html: '<div class="field-label">把屏幕分成 9 格，每格可设为上一页、下一页、菜单等</div>' },
+  slop: { title: '滑动翻页阈值', html: '<div class="slider-row"><span class="label">距离</span><input type="range" min="0" max="100" value="24"><span class="value">24px</span></div>' },
+  keys: { title: '自定义翻页按键', html: '<div class="field-label">按下要绑定的按键</div>' },
+}
+const openL3 = key => {
+  const c = L3[key]; if (!c) return
+  $('#sheet3Title').textContent = c.title
+  $('#sheet3Body').innerHTML = c.html
+  $$('#sheet3Body input[type=range]').forEach(r => { fill(r); r.addEventListener('input', () => { fill(r); const v = r.parentElement.querySelector('.value'); if (v) v.textContent = r.value + (v.textContent.endsWith('px') ? 'px' : '') }) })
+  state.l3 = key; render()
+  $('#sheet3Close').focus()
+}
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-l3]')
+  if (t) { e.stopPropagation(); openL3(t.dataset.l3) }
+  const pick = e.target.closest('#sheet3 [data-pick]')
+  if (pick) {
+    const v = pick.querySelector('.t').textContent
+    toast('已设置：' + v)
+    state.l3 = null; render()
+  }
+}, true)
+$('#sheet3Close').addEventListener('click', () => { state.l3 = null; render() })
+
+// 目录页
+const chapters = Array.from({ length: 30 }, (_, i) => `第${['一','二','三','四','五','六','七','八','九','十','十一','十二','十三','十四','十五','十六','十七','十八','十九','二十','二十一','二十二','二十三','二十四','二十五','二十六','二十七','二十八','二十九','三十'][i]}章 ${['入城','旧账','夜雨','茶棚','青轿','盘问','密信','对质','王法','暗流','清点','火起','收网','余波','归途','我就是王法','风声','对弈','长夜','破晓','入宫','面圣','削籍','南下','渡口','旧友','山寺','钟声','回京','尾声'][i]}`)
+const marks = ['“三天之内，户部的账要给我一个交代。”', '日头偏西的时候，街口终于出现了一顶青布小轿。', '林砚放下茶碗，站起身来']
+let tocTab = 'toc'
+const renderToc = () => {
+  $$('.toc-tabs button').forEach(b => b.classList.toggle('on', b.dataset.toctab === tocTab))
+  $('#tocSearch').title = $('#tocSearch').ariaLabel = tocTab === 'toc' ? '全文搜索' : '搜索书签'
+  $('#tocSearchBox').style.display = 'none'
+  $('#tocList').innerHTML = tocTab === 'toc'
+    ? chapters.map((c, i) => `<div class="row"><span class="t ${i === 15 ? 'cur' : [1, 3, 4, 8].includes(i) || i < 15 && i % 3 ? 'read' : ''}">${c}</span></div>`).join('')
+    : marks.map(m => `<div class="row"><span class="t">${m}<small>第十六章 我就是王法</small></span></div>`).join('')
+}
+$('[data-toc]').addEventListener('click', () => { state.panel = null; state.l3 = null; state.menu = false; render(); tocTab = 'toc'; renderToc(); $('#toc').classList.add('show') })
+$('#tocBack').addEventListener('click', () => $('#toc').classList.remove('show'))
+$$('.toc-tabs button').forEach(b => b.addEventListener('click', () => { tocTab = b.dataset.toctab; renderToc() }))
+$('#tocSearch').addEventListener('click', () => {
+  if (tocTab === 'toc') { $('#toc').classList.remove('show'); toast('打开全文搜索（搜本书正文）') }
+  else { $('#tocSearchBox').style.display = 'block'; $('#tocSearchBox input').focus() }
+})
+
+window.addEventListener('resize', placePanels)
+placePanels(); render()
+</script>
+</body>
+</html>

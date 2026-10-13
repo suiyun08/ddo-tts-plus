@@ -7,6 +7,11 @@ import androidx.activity.result.contract.ActivityResultContract
 
 class TocActivityResult : ActivityResultContract<String, Triple<Int, Int, Boolean>?>() {
 
+    companion object {
+        /** 目录页点了「全文搜索」：返回阅读页后打开全文搜索 */
+        const val OPEN_SEARCH_CONTENT = -1
+    }
+
     override fun createIntent(context: Context, input: String): Intent {
         return Intent(context, TocActivity::class.java)
             .putExtra("bookUrl", input)

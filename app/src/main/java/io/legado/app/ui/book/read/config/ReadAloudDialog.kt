@@ -20,6 +20,7 @@ import io.legado.app.model.ReadAloud
 import io.legado.app.model.ReadBook
 import io.legado.app.service.BaseReadAloudService
 import io.legado.app.ui.book.read.ReadBookActivity
+import io.legado.app.ui.book.read.ReadMenu
 import io.legado.app.ui.widget.seekbar.SeekBarChangeListener
 import io.legado.app.utils.*
 import io.legado.app.utils.viewbindingdelegate.viewBinding
@@ -41,10 +42,12 @@ class ReadAloudDialog : BaseDialogFragment(R.layout.dialog_read_aloud) {
             attributes = attr
             setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
         }
+        placeAboveReadMenu()
     }
 
     override fun onDismiss(dialog: DialogInterface) {
         super.onDismiss(dialog)
+        (activity as? ReadBookActivity)?.onMenuPanelDismiss(ReadMenu.PANEL_ALOUD)
         (activity as ReadBookActivity).bottomDialog--
     }
 
@@ -94,10 +97,8 @@ class ReadAloudDialog : BaseDialogFragment(R.layout.dialog_read_aloud) {
     }
 
     private fun initEvent() = binding.run {
-        llMainMenu.setOnClickListener {
-            callBack?.showMenuBar()
-            dismissAllowingStateLoss()
-        }
+        // 朗读面板展开在底部菜单栏上方，菜单栏一直可见，不再需要「主菜单」按钮
+        llMainMenu.visibility = View.GONE
         llSetting.setOnClickListener {
             ReadAloudConfigDialog().show(childFragmentManager, "readAloudConfigDialog")
         }

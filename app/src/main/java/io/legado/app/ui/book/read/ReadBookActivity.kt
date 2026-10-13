@@ -17,8 +17,11 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.widget.PopupMenu
 import androidx.core.net.toUri
+import androidx.core.view.MenuCompat
 import androidx.core.view.get
+import androidx.core.view.isVisible
 import androidx.core.view.size
+import androidx.fragment.app.DialogFragment
 import androidx.lifecycle.lifecycleScope
 import com.jaredrummler.android.colorpicker.ColorPickerDialogListener
 import io.legado.app.BuildConfig
@@ -122,6 +125,7 @@ import io.legado.app.utils.observeEventSticky
 import io.legado.app.utils.postEvent
 import io.legado.app.utils.showDialogFragment
 import io.legado.app.utils.showHelp
+import io.legado.app.utils.openUrl
 import io.legado.app.utils.startActivity
 import io.legado.app.utils.startActivityForBook
 import io.legado.app.utils.sysScreenOffTime
@@ -159,7 +163,11 @@ class ReadBookActivity : BaseReadBookActivity(),
     private val tocActivity =
         registerForActivityResult(TocActivityResult()) {
             it?.let {
-                viewModel.openChapter(it.first, it.second)
+                if (it.first == TocActivityResult.OPEN_SEARCH_CONTENT) {
+                    openSearchActivity(null)
+                } else {
+                    viewModel.openChapter(it.first, it.second)
+                }
             }
         }
     private val sourceEditActivity =
@@ -384,6 +392,7 @@ class ReadBookActivity : BaseReadBookActivity(),
 
     override fun onCompatCreateOptionsMenu(menu: Menu): Boolean {
         menuInflater.inflate(R.menu.book_read, menu)
+        MenuCompat.setGroupDividerEnabled(menu, true)
         menu.iconItemOnLongClick(R.id.menu_change_source) {
             PopupMenu(this, it).apply {
                 inflate(R.menu.book_read_change_source)
@@ -425,6 +434,14 @@ class ReadBookActivity : BaseReadBookActivity(),
             val item = menu[i]
             when (item.groupId) {
                 R.id.menu_group_on_line -> item.isVisible = onLine
+                R.id.menu_group_source -> item.isVisible = onLine && when (item.itemId) {
+                    R.id.menu_login -> !ReadBook.bookSource?.loginUrl.isNullOrEmpty()
+                    R.id.menu_chapter_pay -> !ReadBook.bookSource?.loginUrl.isNullOrEmpty()
+                            && ReadBook.curTextChapter?.isVip == true
+                            && ReadBook.curTextChapter?.isPay != true
+
+                    else -> true
+                }
                 R.id.menu_group_local -> item.isVisible = !onLine
                 R.id.menu_group_text -> item.isVisible = book.isLocalTxt
                 R.id.menu_group_epub -> item.isVisible = book.isEpub
@@ -456,6 +473,12 @@ class ReadBookActivity : BaseReadBookActivity(),
      */
     override fun onCompatOptionsItemSelected(item: MenuItem): Boolean {
         when (item.itemId) {
+            R.id.menu_open_source_url -> openSourceSite()
+            R.id.menu_login -> showLogin()
+            R.id.menu_chapter_pay -> payAction()
+            R.id.menu_edit_source -> openSourceEditActivity()
+            R.id.menu_disable_source -> disableSource()
+            R.id.menu_manage_replace -> openReplaceRule()
             R.id.menu_change_source,
             R.id.menu_book_change_source -> {
                 binding.readMenu.runMenuOut()
@@ -1108,7 +1131,10 @@ class ReadBookActivity : BaseReadBookActivity(),
 
     override fun showActionMenu() {
         when {
-            BaseReadAloudService.isRun -> showReadAloudDialog()
+            BaseReadAloudService.isRun -> {
+                binding.readMenu.runMenuIn()
+                showMenuPanel(ReadMenu.PANEL_ALOUD)
+            }
             isAutoPage -> showDialogFragment<AutoReadDialog>()
             isShowingSearchResult -> binding.searchMenu.runMenuIn()
             else -> binding.readMenu.runMenuIn()
@@ -1119,7 +1145,7 @@ class ReadBookActivity : BaseReadBookActivity(),
      * 显示朗读菜单
      */
     override fun showReadAloudDialog() {
-        showDialogFragment<ReadAloudDialog>()
+        showMenuPanel(ReadMenu.PANEL_ALOUD)
     }
 
     /**
@@ -1171,6 +1197,27 @@ class ReadBookActivity : BaseReadBookActivity(),
     }
 
     /**
+     * 打开本章在源站的页面
+     */
+    private fun openSourceSite() {
+        if (ReadBook.isLocalBook) return
+        val chapter = ReadBook.curTextChapter ?: return
+        val url = chapter.chapter.getAbsoluteURL()
+        if (AppConfig.readUrlInBrowser) {
+            openUrl(url.substringBefore(",{"))
+        } else {
+            val bookSource = ReadBook.bookSource
+            startActivity<WebViewActivity> {
+                putExtra("title", chapter.title)
+                putExtra("url", url)
+                putExtra("sourceOrigin", bookSource?.bookSourceUrl)
+                putExtra("sourceName", bookSource?.bookSourceName)
+                putExtra("sourceType", bookSource?.getSourceType())
+            }
+        }
+    }
+
+    /**
      * 打开目录
      */
     override fun openChapterList() {
@@ -1207,15 +1254,80 @@ class ReadBookActivity : BaseReadBookActivity(),
      * 显示阅读样式配置
      */
     override fun showReadStyle() {
-        showDialogFragment<ReadStyleDialog>()
+        showMenuPanel(ReadMenu.PANEL_STYLE)
     }
 
     /**
      * 显示更多设置
      */
     override fun showMoreSetting() {
-        showDialogFragment<MoreConfigDialog>()
+        showMenuPanel(ReadMenu.PANEL_SETTING)
     }
+
+    // 底部菜单的二级面板：朗读、界面、设置
+    private fun currentMenuPanel(): Pair<String, DialogFragment>? {
+        supportFragmentManager.fragments.forEach {
+            when (it) {
+                is ReadAloudDialog -> return ReadMenu.PANEL_ALOUD to it
+                is ReadStyleDialog -> return ReadMenu.PANEL_STYLE to it
+                is MoreConfigDialog -> return ReadMenu.PANEL_SETTING to it
+            }
+        }
+        return null
+    }
+
+    override fun toggleMenuPanel(panel: String) {
+        if (currentMenuPanel()?.first == panel) {
+            dismissMenuPanel()
+        } else {
+            showMenuPanel(panel)
+        }
+    }
+
+    /** 展开二级面板，已展开其他面板时先收起它 */
+    private fun showMenuPanel(panel: String) {
+        val current = currentMenuPanel()
+        if (current?.first == panel) return
+        current?.second?.dismissAllowingStateLoss()
+        if (!binding.readMenu.isVisible) binding.readMenu.runMenuIn()
+        binding.readMenu.setSelectedPanel(panel)
+        // 等上一个面板的关闭回调执行完再打开，避免面板计数冲突
+        binding.root.post {
+            if (isFinishing || isDestroyed) return@post
+            when (panel) {
+                ReadMenu.PANEL_ALOUD -> {
+                    if (!BaseReadAloudService.isRun) onClickReadAloud()
+                    showDialogFragment<ReadAloudDialog>()
+                }
+
+                ReadMenu.PANEL_STYLE -> showDialogFragment<ReadStyleDialog>()
+                ReadMenu.PANEL_SETTING -> showDialogFragment<MoreConfigDialog>()
+            }
+        }
+    }
+
+    override fun dismissMenuPanel() {
+        currentMenuPanel()?.let { (panel, dialog) ->
+            dialog.dismissAllowingStateLoss()
+            binding.readMenu.clearSelectedPanel(panel)
+        }
+    }
+
+    /** 二级面板关闭时取消对应按钮的选中状态 */
+    fun onMenuPanelDismiss(panel: String) {
+        binding.readMenu.clearSelectedPanel(panel)
+    }
+
+    override fun onMenuBlankClick() {
+        if (currentMenuPanel() != null) {
+            dismissMenuPanel()
+        } else {
+            binding.readMenu.runMenuOut()
+        }
+    }
+
+    /** 底部菜单栏顶边在屏幕上的位置，二级面板贴在它上方 */
+    fun bottomMenuTopOnScreen(): Int? = binding.readMenu.bottomMenuTopOnScreen()
 
     override fun showSearchSetting() {
         showDialogFragment<MoreConfigDialog>()
