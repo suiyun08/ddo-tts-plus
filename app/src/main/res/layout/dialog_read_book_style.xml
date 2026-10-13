@@ -240,7 +240,7 @@
             <io.legado.app.ui.widget.text.StrokeTextView
                 android:id="@+id/tv_tip"
                 style="@style/ReadMenuTile"
-                android:text="@string/information"
+                android:text="@string/read_tip_tile"
                 app:isBottomBackground="true" />
 
         </LinearLayout>

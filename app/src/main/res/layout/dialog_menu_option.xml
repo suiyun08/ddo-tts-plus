@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--阅读菜单的选择列表弹层：标题 + 带 ✓ 的选项卡片-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical">
+
+    <include
+        android:id="@+id/sheet_header"
+        layout="@layout/view_menu_sheet_header" />
+
+    <androidx.core.widget.NestedScrollView
+        android:id="@+id/sv_options"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <LinearLayout
+            android:id="@+id/ll_options"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginHorizontal="12dp"
+            android:layout_marginBottom="12dp"
+            android:orientation="vertical" />
+
+    </androidx.core.widget.NestedScrollView>
+
+</LinearLayout>

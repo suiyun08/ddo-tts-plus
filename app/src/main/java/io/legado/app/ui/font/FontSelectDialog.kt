@@ -31,6 +31,8 @@ import io.legado.app.utils.isContentScheme
 import io.legado.app.utils.list
 import io.legado.app.utils.listFileDocs
 import io.legado.app.utils.putPrefString
+import io.legado.app.ui.book.read.ReadBookActivity
+import io.legado.app.ui.book.read.config.styleAsMenuSheet
 import io.legado.app.utils.setLayout
 import io.legado.app.utils.toastOnUi
 import io.legado.app.utils.viewbindingdelegate.viewBinding
@@ -73,7 +75,12 @@ class FontSelectDialog : BaseDialogFragment(R.layout.dialog_font_select),
 
     override fun onStart() {
         super.onStart()
-        setLayout(0.9f, 0.9f)
+        // 在阅读页里显示为统一的卡片弹层，其他页面保持原样
+        if (activity is ReadBookActivity) {
+            styleAsMenuSheet(maxHeightRatio = 0.8f, fixedHeight = true)
+        } else {
+            setLayout(0.9f, 0.9f)
+        }
     }
 
     override fun onFragmentCreated(view: View, savedInstanceState: Bundle?) {

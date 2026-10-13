@@ -216,7 +216,8 @@ class TTSEdgeAloudService : BaseReadAloudService(), Player.Listener {
     }
 
     private fun md5SpeakFileName(content: String): String {
-        return MD5Utils.md5Encode16(MD5Utils.md5Encode16("$speechRate|$content"))
+        // 缓存按语速、语音和内容区分，换语音后会重新合成
+        return MD5Utils.md5Encode16(MD5Utils.md5Encode16("$speechRate|${getVoiceValue()}|$content"))
     }
 
     override fun pauseReadAloud(abandonFocus: Boolean) {

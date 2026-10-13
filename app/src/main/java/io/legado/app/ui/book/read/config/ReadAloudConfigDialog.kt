@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import androidx.preference.ListPreference
 import androidx.preference.Preference
@@ -19,6 +20,7 @@ import io.legado.app.lib.dialogs.SelectItem
 import io.legado.app.lib.prefs.SwitchPreference
 import io.legado.app.lib.prefs.fragment.PreferenceFragment
 import io.legado.app.lib.theme.backgroundColor
+import io.legado.app.lib.theme.bottomBackground
 import io.legado.app.lib.theme.primaryColor
 import io.legado.app.model.ReadAloud
 import io.legado.app.service.BaseReadAloudService
@@ -27,6 +29,7 @@ import io.legado.app.utils.StringUtils
 import io.legado.app.utils.fromJsonObject
 import io.legado.app.utils.postEvent
 import io.legado.app.utils.setEdgeEffectColor
+import io.legado.app.utils.dpToPx
 import io.legado.app.utils.setLayout
 import io.legado.app.utils.showDialogFragment
 
@@ -35,10 +38,7 @@ class ReadAloudConfigDialog : BasePrefDialogFragment() {
 
     override fun onStart() {
         super.onStart()
-        dialog?.window?.run {
-            setBackgroundDrawableResource(R.color.transparent)
-            setLayout(0.9f, ViewGroup.LayoutParams.WRAP_CONTENT)
-        }
+        styleAsMenuSheet(maxHeightRatio = 0.7f, fixedHeight = true)
     }
 
     override fun onCreateView(
@@ -46,10 +46,19 @@ class ReadAloudConfigDialog : BasePrefDialogFragment() {
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
+        // 标题栏 + 设置列表
         val view = LinearLayout(requireContext())
-        view.setBackgroundColor(requireContext().backgroundColor)
-        view.id = R.id.tag1
-        container?.addView(view)
+        view.orientation = LinearLayout.VERTICAL
+        view.setBackgroundColor(requireContext().bottomBackground)
+        val header = inflater.inflate(R.layout.view_menu_sheet_header, view, false)
+        view.addView(header)
+        bindSheetHeader(header, getString(R.string.aloud_config))
+        val listContainer = FrameLayout(requireContext())
+        listContainer.id = R.id.tag1
+        view.addView(
+            listContainer,
+            LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+        )
         return view
     }
 
@@ -58,7 +67,7 @@ class ReadAloudConfigDialog : BasePrefDialogFragment() {
         var preferenceFragment = childFragmentManager.findFragmentByTag(readAloudPreferTag)
         if (preferenceFragment == null) preferenceFragment = ReadAloudPreferenceFragment()
         childFragmentManager.beginTransaction()
-            .replace(view.id, preferenceFragment, readAloudPreferTag)
+            .replace(R.id.tag1, preferenceFragment, readAloudPreferTag)
             .commit()
     }
 
@@ -89,6 +98,11 @@ class ReadAloudConfigDialog : BasePrefDialogFragment() {
         override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
             super.onViewCreated(view, savedInstanceState)
             listView.setEdgeEffectColor(primaryColor)
+            // 每组设置画成一张圆角卡片，与阅读菜单的设置面板一致
+            setDivider(null)
+            listView.addItemDecoration(GroupCardDecoration(requireContext().menuTextColor))
+            listView.setPadding(0, 0, 0, 12.dpToPx())
+            listView.clipToPadding = false
         }
 
         override fun onResume() {

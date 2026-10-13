@@ -38,12 +38,14 @@ class ChineseConverter(context: Context, attrs: AttributeSet?) : StrokeTextView(
     }
 
     private fun selectType() {
-        context.alert(titleResource = R.string.chinese_converter) {
-            items(context.resources.getStringArray(R.array.chinese_mode).toList()) { _, i ->
-                AppConfig.chineseConverterType = i
-                upUi(i)
-                onChanged?.invoke()
-            }
+        context.menuSelector(
+            context.getString(R.string.chinese_converter),
+            context.resources.getStringArray(R.array.chinese_mode).toList(),
+            AppConfig.chineseConverterType
+        ) { i ->
+            AppConfig.chineseConverterType = i
+            upUi(i)
+            onChanged?.invoke()
         }
     }
 

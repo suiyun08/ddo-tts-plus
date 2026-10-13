@@ -80,6 +80,7 @@ import io.legado.app.ui.book.read.config.AutoReadDialog
 import io.legado.app.ui.book.read.config.BgTextConfigDialog.Companion.BG_COLOR
 import io.legado.app.ui.book.read.config.BgTextConfigDialog.Companion.TEXT_COLOR
 import io.legado.app.ui.book.read.config.MoreConfigDialog
+import io.legado.app.ui.book.read.config.menuSelector
 import io.legado.app.ui.book.read.config.ReadAloudDialog
 import io.legado.app.ui.book.read.config.ReadStyleDialog
 import io.legado.app.ui.book.read.config.TipConfigDialog.Companion.TIP_COLOR
@@ -602,10 +603,11 @@ class ReadBookActivity : BaseReadBookActivity(),
                         Book.imgStyleDefault, Book.imgStyleFull, Book.imgStyleText,
                         Book.imgStyleSingle
                     )
-                selector(
-                    R.string.image_style,
-                    imgStyles
-                ) { _, index ->
+                menuSelector(
+                    getString(R.string.image_style),
+                    imgStyles,
+                    imgStyles.indexOf(ReadBook.book?.getImageStyle() ?: Book.imgStyleDefault)
+                ) { index ->
                     val imageStyle = imgStyles[index]
                     ReadBook.book?.setImageStyle(imageStyle)
                     if (imageStyle == Book.imgStyleSingle) {
@@ -1135,7 +1137,10 @@ class ReadBookActivity : BaseReadBookActivity(),
                 binding.readMenu.runMenuIn()
                 showMenuPanel(ReadMenu.PANEL_ALOUD)
             }
-            isAutoPage -> showDialogFragment<AutoReadDialog>()
+            isAutoPage -> {
+                binding.readMenu.runMenuIn()
+                showMenuPanel(ReadMenu.PANEL_AUTO)
+            }
             isShowingSearchResult -> binding.searchMenu.runMenuIn()
             else -> binding.readMenu.runMenuIn()
         }
@@ -1271,6 +1276,7 @@ class ReadBookActivity : BaseReadBookActivity(),
                 is ReadAloudDialog -> return ReadMenu.PANEL_ALOUD to it
                 is ReadStyleDialog -> return ReadMenu.PANEL_STYLE to it
                 is MoreConfigDialog -> return ReadMenu.PANEL_SETTING to it
+                is AutoReadDialog -> return ReadMenu.PANEL_AUTO to it
             }
         }
         return null
@@ -1302,6 +1308,7 @@ class ReadBookActivity : BaseReadBookActivity(),
 
                 ReadMenu.PANEL_STYLE -> showDialogFragment<ReadStyleDialog>()
                 ReadMenu.PANEL_SETTING -> showDialogFragment<MoreConfigDialog>()
+                ReadMenu.PANEL_AUTO -> showDialogFragment<AutoReadDialog>()
             }
         }
     }

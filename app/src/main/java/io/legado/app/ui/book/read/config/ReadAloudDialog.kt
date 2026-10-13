@@ -7,13 +7,18 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
+import android.text.SpannableString
+import android.text.Spanned
+import android.text.style.ForegroundColorSpan
+import android.text.style.RelativeSizeSpan
 import android.widget.SeekBar
 import io.legado.app.R
 import io.legado.app.base.BaseDialogFragment
 import io.legado.app.constant.EventBus
 import io.legado.app.databinding.DialogReadAloudBinding
 import io.legado.app.help.config.AppConfig
-import io.legado.app.lib.dialogs.selector
+import io.legado.app.lib.dialogs.SelectItem
+import io.legado.app.lib.theme.accentColor
 import io.legado.app.lib.theme.bottomBackground
 import io.legado.app.lib.theme.getPrimaryTextColor
 import io.legado.app.model.ReadAloud
@@ -58,31 +63,31 @@ class ReadAloudDialog : BaseDialogFragment(R.layout.dialog_read_aloud) {
             return
         }
         val bg = requireContext().bottomBackground
-        val isLight = ColorUtils.isColorLight(bg)
-        val textColor = requireContext().getPrimaryTextColor(isLight)
+        val textColor = requireContext().menuTextColor
         binding.run {
             rootView.setBackgroundColor(bg)
-            tvPre.setTextColor(textColor)
-            tvNext.setTextColor(textColor)
             ivPlayPrev.setColorFilter(textColor)
-            ivPlayPause.setColorFilter(textColor)
             ivPlayNext.setColorFilter(textColor)
             ivStop.setColorFilter(textColor)
             ivTimer.setColorFilter(textColor)
             tvTimer.setTextColor(textColor)
+            tvTimerTitle.setTextColor(textColor)
             ivTtsSpeechReduce.setColorFilter(textColor)
             tvTtsSpeed.setTextColor(textColor)
             tvTtsSpeedValue.setTextColor(textColor)
             ivTtsSpeechAdd.setColorFilter(textColor)
-            ivCatalog.setColorFilter(textColor)
-            tvCatalog.setTextColor(textColor)
-            ivMainMenu.setColorFilter(textColor)
-            tvMainMenu.setTextColor(textColor)
-            ivToBackstage.setColorFilter(textColor)
+            // 播放键：强调色圆形；其余为圆角色块
+            ivPlayPause.background = io.legado.app.lib.theme.Selector.shapeBuild()
+                .setCornerRadius(28.dpToPx())
+                .setDefaultBgColor(requireContext().accentColor)
+                .create()
+            tvTimer.background = MenuPanelStyle.tile(textColor, 15)
+            listOf(tvVoice, tvEngine, tvAloudSetting).forEach {
+                it.background = MenuPanelStyle.tile(textColor)
+                it.setTextColor(textColor)
+            }
+            tvToBackstage.background = MenuPanelStyle.tile(textColor)
             tvToBackstage.setTextColor(textColor)
-            ivSetting.setColorFilter(textColor)
-            tvSetting.setTextColor(textColor)
-            cbTtsFollowSys.setTextColor(textColor)
         }
         initData()
         initEvent()
@@ -91,19 +96,25 @@ class ReadAloudDialog : BaseDialogFragment(R.layout.dialog_read_aloud) {
     private fun initData() = binding.run {
         upPlayState()
         upTimerText(BaseReadAloudService.timeMinute)
-        cbTtsFollowSys.isChecked = requireContext().getPrefBoolean("ttsFollowSys", true)
-        upTtsSpeechRateEnabled(!cbTtsFollowSys.isChecked)
+        upTtsFollowSys(requireContext().getPrefBoolean("ttsFollowSys", true))
+        upTiles()
         upSeekTimer()
     }
 
     private fun initEvent() = binding.run {
-        // 朗读面板展开在底部菜单栏上方，菜单栏一直可见，不再需要「主菜单」按钮
-        llMainMenu.visibility = View.GONE
-        llSetting.setOnClickListener {
+        tvAloudSetting.setOnClickListener {
             ReadAloudConfigDialog().show(childFragmentManager, "readAloudConfigDialog")
         }
-        tvPre.setOnClickListener { ReadBook.moveToPrevChapter(upContent = true, toLast = false) }
-        tvNext.setOnClickListener { ReadBook.moveToNextChapter(true) }
+        tvEngine.setOnClickListener {
+            SpeakEngineDialog().show(childFragmentManager, "speakEngineDialog")
+        }
+        tvVoice.setOnClickListener {
+            if (EdgeVoice.isEdgeEngine) {
+                EdgeVoice.choose(requireContext()) { upTiles() }
+            } else {
+                toastOnUi(R.string.read_aloud_voice_note)
+            }
+        }
         ivStop.setOnClickListener {
             ReadAloud.stop(requireContext())
             dismissAllowingStateLoss()
@@ -111,11 +122,11 @@ class ReadAloudDialog : BaseDialogFragment(R.layout.dialog_read_aloud) {
         ivPlayPause.setOnClickListener { callBack?.onClickReadAloud() }
         ivPlayPrev.setOnClickListener { ReadAloud.prevParagraph(requireContext()) }
         ivPlayNext.setOnClickListener { ReadAloud.nextParagraph(requireContext()) }
-        llCatalog.setOnClickListener { callBack?.openChapterList() }
-        llToBackstage.setOnClickListener { callBack?.finish() }
-        cbTtsFollowSys.setOnCheckedChangeListener { _, isChecked ->
-            AppConfig.ttsFlowSys = isChecked
-            upTtsSpeechRateEnabled(!isChecked)
+        tvToBackstage.setOnClickListener { callBack?.finish() }
+        tvTtsFollowSys.setOnClickListener {
+            val follow = !requireContext().getPrefBoolean("ttsFollowSys", true)
+            AppConfig.ttsFlowSys = follow
+            upTtsFollowSys(follow)
             upTtsSpeechRate()
         }
         ivTtsSpeechReduce.setOnClickListener {
@@ -134,9 +145,14 @@ class ReadAloudDialog : BaseDialogFragment(R.layout.dialog_read_aloud) {
         }
         tvTimer.setOnClickListener {
             val times = intArrayOf(0, 5, 10, 15, 30, 60, 90, 180)
-            val timeKeys = times.map { "$it 分钟" }
-            context?.selector("设定时间", timeKeys) { _, index ->
+            val timeKeys = times.map { if (it == 0) "关闭定时" else "$it 分钟" }
+            requireContext().menuSelector(
+                getString(R.string.read_aloud_timer),
+                timeKeys,
+                times.indexOf(binding.seekTimer.progress)
+            ) { index ->
                 ReadAloud.setTimer(requireContext(), times[index])
+                binding.seekTimer.progress = times[index]
             }
         }
         //设置保存的默认值
@@ -164,10 +180,52 @@ class ReadAloudDialog : BaseDialogFragment(R.layout.dialog_read_aloud) {
         })
     }
 
+    /** 「跟随系统」胶囊：开启时语速跟随系统设置，滑杆不可用 */
+    private fun upTtsFollowSys(follow: Boolean) = binding.run {
+        val textColor = requireContext().menuTextColor
+        tvTtsFollowSys.setTextColor(if (follow) requireContext().accentColor else textColor)
+        tvTtsFollowSys.background = if (follow) {
+            MenuPanelStyle.chipOn(requireContext())
+        } else {
+            MenuPanelStyle.tile(textColor, 15)
+        }
+        upTtsSpeechRateEnabled(!follow)
+    }
+
+    /** 语音 / 朗读引擎 / 朗读设置 三个色块：标题 + 当前值 */
+    private fun upTiles() = binding.run {
+        val context = requireContext()
+        val voice = if (EdgeVoice.isEdgeEngine) {
+            EdgeVoice.currentName(context)
+        } else {
+            getString(R.string.read_aloud_voice_note)
+        }
+        val engine = ReadAloud.ttsEngine?.takeIf { it.isNotBlank() }?.let {
+            GSON.fromJsonObject<SelectItem<String>>(it).getOrNull()?.title ?: "自定义语音"
+        } ?: getString(R.string.system_tts)
+        tvVoice.text = tileText(getString(R.string.read_aloud_voice), voice)
+        tvEngine.text = tileText(getString(R.string.speak_engine), engine)
+        tvAloudSetting.text = tileText(getString(R.string.aloud_config), "后台、按键等")
+    }
+
+    private fun tileText(title: String, value: String): CharSequence {
+        val text = SpannableString("$title\n$value")
+        text.setSpan(
+            RelativeSizeSpan(0.8f), title.length + 1, text.length,
+            Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+        )
+        text.setSpan(
+            ForegroundColorSpan(ColorUtils.withAlpha(requireContext().menuTextColor, 0.55f)),
+            title.length + 1, text.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+        )
+        return text
+    }
+
     private fun upTtsSpeechRateEnabled(enabled: Boolean) {
         binding.run {
             upTtsSpeechRateText(AppConfig.ttsSpeechRate)
             tvTtsSpeedValue.visible(enabled)
+            seekTtsSpeechRate.alpha = if (enabled) 1f else 0.4f
             seekTtsSpeechRate.isEnabled = enabled
             ivTtsSpeechReduce.isEnabled = enabled
             ivTtsSpeechAdd.isEnabled = enabled
@@ -182,10 +240,13 @@ class ReadAloudDialog : BaseDialogFragment(R.layout.dialog_read_aloud) {
             binding.ivPlayPause.setImageResource(R.drawable.ic_play_24dp)
             binding.ivPlayPause.contentDescription = getString(R.string.audio_play)
         }
-        val bg = requireContext().bottomBackground
-        val isLight = ColorUtils.isColorLight(bg)
-        val textColor = requireContext().getPrimaryTextColor(isLight)
-        binding.ivPlayPause.setColorFilter(textColor)
+        // 播放键在强调色圆形上，图标用白色或黑色保证对比度
+        val iconColor = if (ColorUtils.isColorLight(requireContext().accentColor)) {
+            android.graphics.Color.BLACK
+        } else {
+            android.graphics.Color.WHITE
+        }
+        binding.ivPlayPause.setColorFilter(iconColor)
     }
 
     private fun upSeekTimer() {

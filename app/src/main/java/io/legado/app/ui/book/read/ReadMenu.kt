@@ -45,6 +45,7 @@ class ReadMenu @JvmOverloads constructor(
         const val PANEL_ALOUD = "aloud"
         const val PANEL_STYLE = "style"
         const val PANEL_SETTING = "setting"
+        const val PANEL_AUTO = "auto"
     }
 
     var canShowMenu: Boolean = false
@@ -259,7 +260,11 @@ class ReadMenu @JvmOverloads constructor(
                     .create()
             } else null
         }
-        ivAutoPage.setColorFilter(textColor, PorterDuff.Mode.SRC_IN)
+        // 自动翻页面板展开时，进度条右侧的自动翻页按钮高亮
+        ivAutoPage.setColorFilter(
+            if (selectedPanel == PANEL_AUTO) accent else textColor,
+            PorterDuff.Mode.SRC_IN
+        )
     }
 
     private fun upNightView() = binding.run {
@@ -388,7 +393,7 @@ class ReadMenu @JvmOverloads constructor(
             ivAutoPage.setImageResource(R.drawable.ic_auto_page)
             ivAutoPage.contentDescription = context.getString(R.string.auto_next_page)
         }
-        ivAutoPage.setColorFilter(textColor, PorterDuff.Mode.SRC_IN)
+        upTabColors()
     }
 
     interface CallBack {

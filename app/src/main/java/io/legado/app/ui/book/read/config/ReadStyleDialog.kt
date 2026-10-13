@@ -18,7 +18,6 @@ import io.legado.app.databinding.DialogReadBookStyleBinding
 import io.legado.app.databinding.ItemReadStyleBinding
 import io.legado.app.help.config.AppConfig
 import io.legado.app.help.config.ReadBookConfig
-import io.legado.app.lib.dialogs.selector
 import io.legado.app.lib.theme.Selector
 import io.legado.app.lib.theme.accentColor
 import io.legado.app.lib.theme.bottomBackground
@@ -176,10 +175,11 @@ class ReadStyleDialog : BaseDialogFragment(R.layout.dialog_read_book_style),
             showDialogFragment<FontSelectDialog>()
         }
         tvTextIndent.setOnClickListener {
-            context?.selector(
-                title = getString(R.string.text_indent),
-                items = resources.getStringArray(R.array.indent).toList()
-            ) { _, index ->
+            context?.menuSelector(
+                getString(R.string.text_indent),
+                resources.getStringArray(R.array.indent).toList(),
+                ReadBookConfig.paragraphIndent.length
+            ) { index ->
                 ReadBookConfig.paragraphIndent = "　".repeat(index)
                 postEvent(EventBus.UP_CONFIG, arrayListOf(8, 5))
             }

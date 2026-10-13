@@ -19,6 +19,7 @@ import io.legado.app.model.ReadBook
 import io.legado.app.service.BaseReadAloudService
 import io.legado.app.ui.book.read.BaseReadBookActivity
 import io.legado.app.ui.book.read.ReadBookActivity
+import io.legado.app.ui.book.read.ReadMenu
 import io.legado.app.ui.widget.seekbar.SeekBarChangeListener
 import io.legado.app.utils.ColorUtils
 import io.legado.app.utils.viewbindingdelegate.viewBinding
@@ -42,10 +43,12 @@ class AutoReadDialog : BaseDialogFragment(R.layout.dialog_auto_read) {
             attributes = attr
             setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
         }
+        placeAboveReadMenu()
     }
 
     override fun onDismiss(dialog: DialogInterface) {
         super.onDismiss(dialog)
+        (activity as? ReadBookActivity)?.onMenuPanelDismiss(ReadMenu.PANEL_AUTO)
         (activity as ReadBookActivity).bottomDialog--
     }
 
@@ -56,19 +59,15 @@ class AutoReadDialog : BaseDialogFragment(R.layout.dialog_auto_read) {
             return@run
         }
         val bg = requireContext().bottomBackground
-        val isLight = ColorUtils.isColorLight(bg)
-        val textColor = requireContext().getPrimaryTextColor(isLight)
+        val textColor = requireContext().menuTextColor
         root.setBackgroundColor(bg)
+        tvAutoTitle.setTextColor(textColor)
         tvReadSpeedTitle.setTextColor(textColor)
         tvReadSpeed.setTextColor(textColor)
-        ivCatalog.setColorFilter(textColor, PorterDuff.Mode.SRC_IN)
-        tvCatalog.setTextColor(textColor)
-        ivMainMenu.setColorFilter(textColor, PorterDuff.Mode.SRC_IN)
-        tvMainMenu.setTextColor(textColor)
-        ivAutoPageStop.setColorFilter(textColor, PorterDuff.Mode.SRC_IN)
-        tvAutoPageStop.setTextColor(textColor)
-        ivSetting.setColorFilter(textColor, PorterDuff.Mode.SRC_IN)
-        tvSetting.setTextColor(textColor)
+        listOf(tvPageAnim, tvAutoPageStop).forEach {
+            it.background = MenuPanelStyle.tile(textColor)
+            it.setTextColor(textColor)
+        }
         initOnChange()
         initData()
         initEvent()
@@ -76,7 +75,7 @@ class AutoReadDialog : BaseDialogFragment(R.layout.dialog_auto_read) {
 
     private fun initData() {
         val speed = if (ReadBookConfig.autoReadSpeed < 1) 1 else ReadBookConfig.autoReadSpeed
-        binding.tvReadSpeed.text = String.format(Locale.ROOT, "%ds", speed)
+        binding.tvReadSpeed.text = String.format(Locale.ROOT, "%d 秒/页", speed)
         binding.seekAutoRead.progress = speed
     }
 
@@ -84,7 +83,7 @@ class AutoReadDialog : BaseDialogFragment(R.layout.dialog_auto_read) {
         binding.seekAutoRead.setOnSeekBarChangeListener(object : SeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
                 val speed = if (progress < 1) 1 else progress
-                binding.tvReadSpeed.text = String.format(Locale.ROOT, "%ds", speed)
+                binding.tvReadSpeed.text = String.format(Locale.ROOT, "%d 秒/页", speed)
             }
 
             override fun onStopTrackingTouch(seekBar: SeekBar) {
@@ -96,20 +95,15 @@ class AutoReadDialog : BaseDialogFragment(R.layout.dialog_auto_read) {
     }
 
     private fun initEvent() {
-        binding.llMainMenu.setOnClickListener {
-            callBack?.showMenuBar()
-            dismissAllowingStateLoss()
-        }
-        binding.llSetting.setOnClickListener {
+        binding.tvPageAnim.setOnClickListener {
             (activity as BaseReadBookActivity).showPageAnimConfig {
                 (activity as ReadBookActivity).upPageAnim()
                 ReadBook.loadContent(false)
             }
         }
-        binding.llCatalog.setOnClickListener { callBack?.openChapterList() }
-        binding.llAutoPageStop.setOnClickListener {
+        binding.tvAutoPageStop.setOnClickListener {
             callBack?.autoPageStop()
-            binding.llAutoPageStop.post {
+            binding.tvAutoPageStop.post {
                 dismissAllowingStateLoss()
             }
         }

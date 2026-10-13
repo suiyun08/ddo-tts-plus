@@ -61,6 +61,7 @@ import io.legado.app.utils.readBytes
 import io.legado.app.utils.readUri
 import io.legado.app.utils.stackTraceStr
 import io.legado.app.utils.toastOnUi
+import io.legado.app.utils.dpToPx
 import io.legado.app.utils.viewbindingdelegate.viewBinding
 import splitties.init.appCtx
 import java.io.File
@@ -111,6 +112,8 @@ class BgTextConfigDialog : BaseDialogFragment(R.layout.dialog_read_bg_text) {
             attributes = attr
             setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
         }
+        // 统一为阅读菜单的卡片弹层，关闭后回到「界面」面板
+        styleAsMenuSheet()
     }
 
     override fun onFragmentCreated(view: View, savedInstanceState: Bundle?) {
@@ -132,6 +135,10 @@ class BgTextConfigDialog : BaseDialogFragment(R.layout.dialog_read_bg_text) {
         primaryTextColor = requireContext().getPrimaryTextColor(isLight)
         secondaryTextColor = requireContext().getSecondaryTextColor(isLight)
         rootView.setBackgroundColor(bg)
+        listOf(tvTextColor, tvBgColor).forEach {
+            it.background = MenuPanelStyle.tile(primaryTextColor)
+            it.minHeight = 44.dpToPx()
+        }
         tvNameTitle.setTextColor(primaryTextColor)
         tvName.setTextColor(secondaryTextColor)
         ivEdit.setColorFilter(secondaryTextColor, PorterDuff.Mode.SRC_IN)
@@ -192,7 +199,7 @@ class BgTextConfigDialog : BaseDialogFragment(R.layout.dialog_read_bg_text) {
         binding.tvRestore.setOnClickListener {
             val defaultConfigs = DefaultData.readConfigs
             val layoutNames = defaultConfigs.map { it.name }
-            context?.selector("选择预设布局", layoutNames) { _, i ->
+            context?.menuSelector("选择预设布局", layoutNames) { i ->
                 if (i >= 0) {
                     ReadBookConfig.durConfig = defaultConfigs[i].copy()
                     initData()

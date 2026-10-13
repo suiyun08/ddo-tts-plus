@@ -1246,4 +1246,16 @@
     <string name="read_cat_layout">Layout</string>
     <string name="read_cat_page">Paging &amp; keys</string>
     <string name="read_cat_text">Text &amp; images</string>
+    <string name="read_aloud_speed_short">Speed</string>
+    <string name="read_aloud_backstage">Keep listening in background</string>
+    <string name="read_aloud_voice">Voice</string>
+    <string name="read_tip_tile">Header &amp; footer</string>
+    <string name="read_tip_title">Title, header &amp; footer</string>
+    <string name="read_aloud_voice_note">Only for Edge engine</string>
+    <string name="read_aloud_cat_play">Playback</string>
+    <string name="read_aloud_cat_interrupt">Interruptions &amp; background</string>
+    <string name="read_aloud_cat_media">Headset &amp; media keys</string>
+    <string name="read_aloud_cat_engine">Engine</string>
+    <string name="read_tip_color">Colors</string>
+    <string name="auto_page_interval">Per page</string>
 </resources>

@@ -41,12 +41,14 @@ class TextFontWeightConverter(context: Context, attrs: AttributeSet?) :
     }
 
     private fun selectType() {
-        context.alert(titleResource = R.string.text_font_weight_converter) {
-            items(context.resources.getStringArray(R.array.text_font_weight).toList()) { _, i ->
-                ReadBookConfig.textBold = i
-                upUi(i)
-                onChanged?.invoke()
-            }
+        context.menuSelector(
+            context.getString(R.string.text_font_weight_converter),
+            context.resources.getStringArray(R.array.text_font_weight).toList(),
+            ReadBookConfig.textBold
+        ) { i ->
+            ReadBookConfig.textBold = i
+            upUi(i)
+            onChanged?.invoke()
         }
     }
 

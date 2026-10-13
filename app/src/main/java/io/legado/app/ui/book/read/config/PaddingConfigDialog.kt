@@ -10,9 +10,11 @@ import io.legado.app.base.BaseDialogFragment
 import io.legado.app.constant.EventBus
 import io.legado.app.databinding.DialogReadPaddingBinding
 import io.legado.app.help.config.ReadBookConfig
+import io.legado.app.lib.theme.bottomBackground
 import io.legado.app.utils.postEvent
 import io.legado.app.utils.setLayout
 import io.legado.app.utils.viewbindingdelegate.viewBinding
+import io.legado.app.utils.visible
 
 class PaddingConfigDialog : BaseDialogFragment(R.layout.dialog_read_padding) {
 
@@ -20,18 +22,28 @@ class PaddingConfigDialog : BaseDialogFragment(R.layout.dialog_read_padding) {
 
     override fun onStart() {
         super.onStart()
-        dialog?.window?.let {
-            it.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
-            val attr = it.attributes
-            attr.dimAmount = 0.0f
-            it.attributes = attr
-        }
-        setLayout(0.9f, ViewGroup.LayoutParams.WRAP_CONTENT)
+        styleAsMenuSheet()
     }
 
     override fun onFragmentCreated(view: View, savedInstanceState: Bundle?) {
+        val textColor = requireContext().menuTextColor
+        view.setBackgroundColor(requireContext().bottomBackground)
+        bindSheetHeader(binding.sheetHeader.root, getString(R.string.padding))
+        binding.tvCbShowTopLineTitle.setTextColor(textColor)
+        binding.tvCbShowBottomLineTitle.setTextColor(textColor)
+        // 页眉 / 正文 / 页脚 分段切换，默认正文
+        MenuPanelStyle.applySegment(binding.rgPaddingArea, textColor)
+        binding.rgPaddingArea.setOnCheckedChangeListener { _, checkedId -> showArea(checkedId) }
+        binding.rgPaddingArea.check(R.id.rb_area_body)
+        showArea(R.id.rb_area_body)
         initData()
         initView()
+    }
+
+    private fun showArea(checkedId: Int) = binding.run {
+        llHeaderPadding.visible(checkedId == R.id.rb_area_header)
+        llBodyPadding.visible(checkedId == R.id.rb_area_body)
+        llFooterPadding.visible(checkedId == R.id.rb_area_footer)
     }
 
     override fun onDismiss(dialog: DialogInterface) {

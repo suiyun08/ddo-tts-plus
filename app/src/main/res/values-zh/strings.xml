@@ -1242,4 +1242,16 @@
     <string name="read_cat_layout">排版</string>
     <string name="read_cat_page">翻页与按键</string>
     <string name="read_cat_text">文本与图片</string>
+    <string name="read_aloud_speed_short">语速</string>
+    <string name="read_aloud_backstage">后台朗读（回到桌面继续听）</string>
+    <string name="read_aloud_voice">语音</string>
+    <string name="read_tip_tile">页眉页脚</string>
+    <string name="read_tip_title">标题与页眉页脚</string>
+    <string name="read_aloud_voice_note">仅 Edge 引擎</string>
+    <string name="read_aloud_cat_play">播放</string>
+    <string name="read_aloud_cat_interrupt">打断与后台</string>
+    <string name="read_aloud_cat_media">耳机与媒体按键</string>
+    <string name="read_aloud_cat_engine">引擎</string>
+    <string name="read_tip_color">颜色</string>
+    <string name="auto_page_interval">每页</string>
 </resources>

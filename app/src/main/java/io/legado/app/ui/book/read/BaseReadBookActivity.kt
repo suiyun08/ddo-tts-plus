@@ -30,6 +30,7 @@ import io.legado.app.lib.theme.ThemeStore
 import io.legado.app.lib.theme.bottomBackground
 import io.legado.app.model.CacheBook
 import io.legado.app.model.ReadBook
+import io.legado.app.ui.book.read.config.menuSelector
 import io.legado.app.ui.book.read.config.BgTextConfigDialog
 import io.legado.app.ui.book.read.config.ClickActionConfigDialog
 import io.legado.app.ui.book.read.config.PaddingConfigDialog
@@ -368,7 +369,11 @@ abstract class BaseReadBookActivity :
         items.add(getString(R.string.page_anim_simulation))
         items.add(getString(R.string.page_anim_scroll))
         items.add(getString(R.string.page_anim_none))
-        selector(R.string.page_anim, items) { _, i ->
+        menuSelector(
+            getString(R.string.page_anim),
+            items,
+            (ReadBook.book?.getPageAnim() ?: -1) + 1
+        ) { i ->
             ReadBook.book?.setPageAnim(i - 1)
             success()
         }

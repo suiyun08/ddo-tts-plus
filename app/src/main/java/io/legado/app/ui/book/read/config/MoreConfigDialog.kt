@@ -16,6 +16,7 @@ import android.view.ViewConfiguration
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.LinearLayout
+import androidx.preference.ListPreference
 import androidx.preference.Preference
 import androidx.preference.PreferenceGroup
 import androidx.preference.PreferenceGroupAdapter
@@ -114,6 +115,24 @@ class MoreConfigDialog : BasePrefDialogFragment() {
             listView.addItemDecoration(GroupCardDecoration(textColor))
             listView.setPadding(0, 0, 0, 12.dpToPx())
             listView.clipToPadding = false
+        }
+
+        /** 选项类设置用阅读菜单统一的选择列表弹出 */
+        override fun onDisplayPreferenceDialog(preference: Preference) {
+            if (preference is ListPreference) {
+                val values = preference.entryValues?.map { it.toString() } ?: return
+                val entries = preference.entries?.toList() ?: return
+                requireContext().menuSelector(
+                    preference.title,
+                    entries,
+                    values.indexOf(preference.value)
+                ) { index ->
+                    val value = values[index]
+                    if (preference.callChangeListener(value)) preference.value = value
+                }
+                return
+            }
+            super.onDisplayPreferenceDialog(preference)
         }
 
         override fun onResume() {
@@ -229,71 +248,3 @@ class MoreConfigDialog : BasePrefDialogFragment() {
 
     }
 }
-
-/**
- * 把设置列表中每个分组的设置项画成一张圆角卡片，组内各项之间加分隔线
- */
-@SuppressLint("RestrictedApi")
-private class GroupCardDecoration(textColor: Int) : RecyclerView.ItemDecoration() {
-
-    private val margin = 12.dpToPx()
-    private val lineInset = 16.dpToPx().toFloat()
-    private val radius = 12.dpToPx().toFloat()
-    private val cardPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = ColorUtils.withAlpha(textColor, 0.06f)
-    }
-    private val linePaint = Paint().apply {
-        color = ColorUtils.withAlpha(textColor, 0.1f)
-        strokeWidth = 1f
-    }
-    private val path = Path()
-    private val rect = RectF()
-
-    /** 该位置是分组标题，或已超出列表范围 */
-    private fun isBoundary(parent: RecyclerView, position: Int): Boolean {
-        val adapter = parent.adapter as? PreferenceGroupAdapter ?: return true
-        if (position < 0 || position >= adapter.itemCount) return true
-        return adapter.getItem(position) is PreferenceGroup
-    }
-
-    override fun getItemOffsets(
-        outRect: Rect,
-        view: View,
-        parent: RecyclerView,
-        state: RecyclerView.State
-    ) {
-        val position = parent.getChildAdapterPosition(view)
-        if (position == RecyclerView.NO_POSITION || isBoundary(parent, position)) return
-        outRect.left = margin
-        outRect.right = margin
-    }
-
-    override fun onDraw(c: Canvas, parent: RecyclerView, state: RecyclerView.State) {
-        for (i in 0 until parent.childCount) {
-            val child = parent.getChildAt(i)
-            val position = parent.getChildAdapterPosition(child)
-            if (position == RecyclerView.NO_POSITION || isBoundary(parent, position)) continue
-            val first = isBoundary(parent, position - 1)
-            val last = isBoundary(parent, position + 1)
-            rect.set(
-                child.left.toFloat(),
-                child.top + child.translationY,
-                child.right.toFloat(),
-                child.bottom + child.translationY
-            )
-            val top = if (first) radius else 0f
-            val bottom = if (last) radius else 0f
-            path.reset()
-            path.addRoundRect(
-                rect,
-                floatArrayOf(top, top, top, top, bottom, bottom, bottom, bottom),
-                Path.Direction.CW
-            )
-            c.drawPath(path, cardPaint)
-            if (!last) {
-                c.drawLine(rect.left + lineInset, rect.bottom, rect.right - lineInset, rect.bottom, linePaint)
-            }
-        }
-    }
-}
-

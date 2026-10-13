@@ -3,6 +3,7 @@ package io.legado.app.ui.book.read.config
 import android.os.Bundle
 import android.view.View
 import android.view.ViewGroup
+import android.widget.TextView
 import androidx.core.view.indices
 import com.jaredrummler.android.colorpicker.ColorPickerDialog
 import io.legado.app.R
@@ -11,7 +12,7 @@ import io.legado.app.constant.EventBus
 import io.legado.app.databinding.DialogTipConfigBinding
 import io.legado.app.help.config.ReadBookConfig
 import io.legado.app.help.config.ReadTipConfig
-import io.legado.app.lib.dialogs.selector
+import io.legado.app.lib.theme.bottomBackground
 import io.legado.app.utils.checkByIndex
 import io.legado.app.utils.getIndexById
 import io.legado.app.utils.hexString
@@ -32,15 +33,38 @@ class TipConfigDialog : BaseDialogFragment(R.layout.dialog_tip_config) {
 
     override fun onStart() {
         super.onStart()
-        setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        styleAsMenuSheet()
     }
 
     override fun onFragmentCreated(view: View, savedInstanceState: Bundle?) {
+        initStyle(view)
         initView()
         initEvent()
         observeEvent<String>(EventBus.TIP_COLOR) {
             upTvTipColor()
             upTvTipDividerColor()
+        }
+    }
+
+    /** 统一为阅读菜单弹层样式：标题栏、分段选择、分组卡片 */
+    private fun initStyle(view: View) = binding.run {
+        val textColor = requireContext().menuTextColor
+        view.setBackgroundColor(requireContext().bottomBackground)
+        bindSheetHeader(sheetHeader.root, getString(R.string.read_tip_title))
+        setTextColorDeep(llTipContent, textColor)
+        MenuPanelStyle.applySegment(rgTitleMode, textColor)
+        listOf(llHeaderGroup, llFooterGroup, llColorGroup).forEach {
+            MenuPanelStyle.applyGroupCard(it, textColor)
+        }
+    }
+
+    private fun setTextColorDeep(group: ViewGroup, color: Int) {
+        for (i in 0 until group.childCount) {
+            when (val child = group.getChildAt(i)) {
+                is android.widget.RadioButton -> Unit
+                is TextView -> child.setTextColor(color)
+                is ViewGroup -> setTextColorDeep(child, color)
+            }
         }
     }
 
@@ -116,7 +140,7 @@ class TipConfigDialog : BaseDialogFragment(R.layout.dialog_tip_config) {
         }
         llHeaderShow.setOnClickListener {
             val headerModes = ReadTipConfig.getHeaderModes(requireContext())
-            context?.selector(items = headerModes.values.toList()) { _, i ->
+            context?.menuSelector("页眉显示", headerModes.values.toList(), headerModes.keys.toList().indexOf(ReadTipConfig.headerMode)) { i ->
                 ReadTipConfig.headerMode = headerModes.keys.toList()[i]
                 tvHeaderShow.text = headerModes[ReadTipConfig.headerMode]
                 postEvent(EventBus.UP_CONFIG, arrayListOf(2))
@@ -124,14 +148,18 @@ class TipConfigDialog : BaseDialogFragment(R.layout.dialog_tip_config) {
         }
         llFooterShow.setOnClickListener {
             val footerModes = ReadTipConfig.getFooterModes(requireContext())
-            context?.selector(items = footerModes.values.toList()) { _, i ->
+            context?.menuSelector("页脚显示", footerModes.values.toList(), footerModes.keys.toList().indexOf(ReadTipConfig.footerMode)) { i ->
                 ReadTipConfig.footerMode = footerModes.keys.toList()[i]
                 tvFooterShow.text = footerModes[ReadTipConfig.footerMode]
                 postEvent(EventBus.UP_CONFIG, arrayListOf(2))
             }
         }
         llHeaderLeft.setOnClickListener {
-            context?.selector(items = ReadTipConfig.tipNames) { _, i ->
+            context?.menuSelector(
+                "页眉左侧",
+                ReadTipConfig.tipNames,
+                ReadTipConfig.tipValues.indexOf(ReadTipConfig.tipHeaderLeft)
+            ) { i ->
                 val tipValue = ReadTipConfig.tipValues[i]
                 clearRepeat(tipValue)
                 ReadTipConfig.tipHeaderLeft = tipValue
@@ -140,7 +168,11 @@ class TipConfigDialog : BaseDialogFragment(R.layout.dialog_tip_config) {
             }
         }
         llHeaderMiddle.setOnClickListener {
-            context?.selector(items = ReadTipConfig.tipNames) { _, i ->
+            context?.menuSelector(
+                "页眉中间",
+                ReadTipConfig.tipNames,
+                ReadTipConfig.tipValues.indexOf(ReadTipConfig.tipHeaderMiddle)
+            ) { i ->
                 val tipValue = ReadTipConfig.tipValues[i]
                 clearRepeat(tipValue)
                 ReadTipConfig.tipHeaderMiddle = tipValue
@@ -149,7 +181,11 @@ class TipConfigDialog : BaseDialogFragment(R.layout.dialog_tip_config) {
             }
         }
         llHeaderRight.setOnClickListener {
-            context?.selector(items = ReadTipConfig.tipNames) { _, i ->
+            context?.menuSelector(
+                "页眉右侧",
+                ReadTipConfig.tipNames,
+                ReadTipConfig.tipValues.indexOf(ReadTipConfig.tipHeaderRight)
+            ) { i ->
                 val tipValue = ReadTipConfig.tipValues[i]
                 clearRepeat(tipValue)
                 ReadTipConfig.tipHeaderRight = tipValue
@@ -158,7 +194,11 @@ class TipConfigDialog : BaseDialogFragment(R.layout.dialog_tip_config) {
             }
         }
         llFooterLeft.setOnClickListener {
-            context?.selector(items = ReadTipConfig.tipNames) { _, i ->
+            context?.menuSelector(
+                "页脚左侧",
+                ReadTipConfig.tipNames,
+                ReadTipConfig.tipValues.indexOf(ReadTipConfig.tipFooterLeft)
+            ) { i ->
                 val tipValue = ReadTipConfig.tipValues[i]
                 clearRepeat(tipValue)
                 ReadTipConfig.tipFooterLeft = tipValue
@@ -167,7 +207,11 @@ class TipConfigDialog : BaseDialogFragment(R.layout.dialog_tip_config) {
             }
         }
         llFooterMiddle.setOnClickListener {
-            context?.selector(items = ReadTipConfig.tipNames) { _, i ->
+            context?.menuSelector(
+                "页脚中间",
+                ReadTipConfig.tipNames,
+                ReadTipConfig.tipValues.indexOf(ReadTipConfig.tipFooterMiddle)
+            ) { i ->
                 val tipValue = ReadTipConfig.tipValues[i]
                 clearRepeat(tipValue)
                 ReadTipConfig.tipFooterMiddle = tipValue
@@ -176,7 +220,11 @@ class TipConfigDialog : BaseDialogFragment(R.layout.dialog_tip_config) {
             }
         }
         llFooterRight.setOnClickListener {
-            context?.selector(items = ReadTipConfig.tipNames) { _, i ->
+            context?.menuSelector(
+                "页脚右侧",
+                ReadTipConfig.tipNames,
+                ReadTipConfig.tipValues.indexOf(ReadTipConfig.tipFooterRight)
+            ) { i ->
                 val tipValue = ReadTipConfig.tipValues[i]
                 clearRepeat(tipValue)
                 ReadTipConfig.tipFooterRight = tipValue
@@ -185,7 +233,7 @@ class TipConfigDialog : BaseDialogFragment(R.layout.dialog_tip_config) {
             }
         }
         llTipColor.setOnClickListener {
-            context?.selector(items = ReadTipConfig.tipColorNames) { _, i ->
+            context?.menuSelector("页眉页脚文字颜色", ReadTipConfig.tipColorNames, if (ReadTipConfig.tipColor == 0) 0 else 1) { i ->
                 when (i) {
                     0 -> {
                         ReadTipConfig.tipColor = 0
@@ -202,7 +250,11 @@ class TipConfigDialog : BaseDialogFragment(R.layout.dialog_tip_config) {
             }
         }
         llTipDividerColor.setOnClickListener {
-            context?.selector(items = ReadTipConfig.tipDividerColorNames) { _, i ->
+            context?.menuSelector(
+                "分隔线颜色",
+                ReadTipConfig.tipDividerColorNames,
+                when (ReadTipConfig.tipDividerColor) { -1 -> 0; 0 -> 1; else -> 2 }
+            ) { i ->
                 when (i) {
                     0, 1 -> {
                         ReadTipConfig.tipDividerColor = i - 1

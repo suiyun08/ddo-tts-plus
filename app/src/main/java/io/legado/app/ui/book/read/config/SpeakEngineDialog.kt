@@ -47,6 +47,7 @@ import io.legado.app.utils.isAbsUrl
 import io.legado.app.utils.isJsonObject
 import io.legado.app.utils.sendToClip
 import io.legado.app.utils.setEdgeEffectColor
+import io.legado.app.ui.book.read.ReadBookActivity
 import io.legado.app.utils.setLayout
 import io.legado.app.utils.showDialogFragment
 import io.legado.app.utils.splitNotBlank
@@ -97,7 +98,12 @@ class SpeakEngineDialog() : BaseDialogFragment(R.layout.dialog_recycler_view),
 
     override fun onStart() {
         super.onStart()
-        setLayout(ViewGroup.LayoutParams.MATCH_PARENT, 0.9f)
+        // 在阅读页里显示为统一的卡片弹层，其他页面保持原样
+        if (activity is ReadBookActivity) {
+            styleAsMenuSheet(maxHeightRatio = 0.8f, fixedHeight = true)
+        } else {
+            setLayout(ViewGroup.LayoutParams.MATCH_PARENT, 0.9f)
+        }
     }
 
     override fun onFragmentCreated(view: View, savedInstanceState: Bundle?) {
@@ -162,66 +168,9 @@ class SpeakEngineDialog() : BaseDialogFragment(R.layout.dialog_recycler_view),
                 cbName.setOnClickListener {
                     upTts(GSON.toJson(SelectItem("Edge大声朗读", "edgeinner")))
                 }
-                // 你的点击事件逻辑
+                // 选择 Edge 语音：与朗读面板的「语音」共用，选中立即生效
                 ivEdit.setOnClickListener {
-
-                    val cacheKey = "tts_edge_voice"
-                    val cacheValue = getSharedPrefValue(context, cacheKey, "")
-                    var voiceOptions = listOf(
-                        "晓晓@zh-CN-XiaoxiaoNeural",
-                        "小艺@zh-CN-XiaoyiNeural",
-                        "云健@zh-CN-YunjianNeural",
-                        "云希@zh-CN-YunxiNeural",
-                        "云夏@zh-CN-YunxiaNeural",
-                        "云扬@zh-CN-YunyangNeural",
-                        "小北（辽宁方言）@zh-CN-liaoning-XiaobeiNeural",
-                        "小妮（陕西方言）@zh-CN-shaanxi-XiaoniNeural"
-                    )
-                    // 1. 创建Spinner控件
-                    val spinner = Spinner(context).apply {
-                        layoutParams = LinearLayout.LayoutParams(
-                            ViewGroup.LayoutParams.MATCH_PARENT,
-                            ViewGroup.LayoutParams.WRAP_CONTENT
-                        )
-                        setPadding(
-                            dp2px(context, 16),
-                            dp2px(context, 12),
-                            dp2px(context, 16),
-                            dp2px(context, 12)
-                        )
-
-                        // 2. 设置Spinner适配器
-                        adapter = ArrayAdapter(
-                            context,
-                            android.R.layout.simple_spinner_item,
-                            voiceOptions
-                        ).apply {
-                            setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-                        }
-
-                        // 3. 选中缓存的选项（如果缓存值在列表中）
-                        val cacheIndex = voiceOptions.indexOf(cacheValue)
-                        if (cacheIndex != -1) {
-                            setSelection(cacheIndex)
-                        }
-                    }
-
-                    // 4. 构建弹窗并显示
-                    AlertDialog.Builder(context)
-                        .setMessage("保存嗓音后需变更下语速才会使用新嗓音或者是等待读完缓存段落")
-                        .setView(spinner)
-                        .setPositiveButton("保存") { dialog, _ ->
-                            // 获取选中的选项并保存到缓存
-                            val selectedValue = spinner.selectedItem.toString()
-                            saveToSharedPref(context, cacheKey, selectedValue)
-                            Toast.makeText(context, "已选择：${selectedValue.take(20)}...", Toast.LENGTH_SHORT).show()
-                            dialog.dismiss()
-                        }
-                        .setNegativeButton("取消") { dialog, _ ->
-                            dialog.dismiss()
-                        }
-                        .setCancelable(true)
-                        .show()
+                    EdgeVoice.choose(requireContext())
                 }
             }
 
