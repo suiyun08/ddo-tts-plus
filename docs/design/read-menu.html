@@ -13,6 +13,11 @@ Requirement changes:
 Key assumptions:
 - 用户说的「亮度按钮」是现在第 4 个悬浮按钮（太阳图标，实际是深色模式开关）
 - 朗读按钮行为不变：点击开始朗读并展开朗读面板
+Round 2 (朗读/自动翻页/三级弹层):
+- 朗读面板：播放控制、语速（可跟随系统）、定时、语音/朗读引擎/朗读设置色块、后台朗读；去掉与底部栏重复的目录、主菜单、上一章/下一章
+- 自动翻页时点正文中间：弹出菜单并展开「自动翻页」面板（速度、翻页动画、停止）
+- 所有三级弹层统一为底部浮起的圆角卡片：标题+关闭，列表行/滑杆行/分组卡片与二级一致；选项类（缩进、简繁、粗细、屏幕方向等）为带 ✓ 的列表
+- 边距按 页眉/正文/页脚 分段切换；「信息」改名「标题与页眉页脚」；语音选中立即生效
 Covered states:
 - 菜单收起 / 一级菜单 / 二级面板（朗读、界面、设置）/ 三级弹层（字体、缩进、简繁、粗细、边距、信息、翻页阈值等）
 - 「⋮」更多菜单、深色模式、自动翻页开启、目录页（目录/书签搜索）
@@ -165,6 +170,15 @@ input[type=range]:disabled { opacity: .4; }
 .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 14px; }
 .tile { height: 56px; border: 0; border-radius: 12px; background: var(--panel-2); color: var(--text); cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: 13px; }
 .tile small { color: var(--text-2); font-size: 11px; }
+.play-row { display: flex; justify-content: center; align-items: center; gap: 22px; padding: 4px 0 6px; }
+.play-row .play { width: 56px; height: 56px; border-radius: 28px; background: var(--accent); color: #fff; font-size: 22px; }
+.play-row .play:hover { background: var(--accent); }
+.wide-btn { width: 100%; height: 44px; margin-top: 10px; border: 0; border-radius: 12px; background: var(--panel-2); color: var(--text); font-size: 14px; cursor: pointer; }
+.sheet3 .seg { margin: 4px 0 6px; }
+.color-dot { display: inline-block; width: 18px; height: 18px; border-radius: 50%; vertical-align: -4px; margin-left: 6px; border: 1px solid var(--line); }
+.bg-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.bg-grid div { height: 56px; border-radius: 10px; border: 2px solid transparent; }
+.bg-grid div.on { border-color: var(--accent); }
 
 /* 列表行（设置、三级弹层） */
 .row { display: flex; align-items: center; min-height: 52px; gap: 12px; border-bottom: 1px solid var(--line); cursor: pointer; }
@@ -288,18 +302,31 @@ input[type=range]:disabled { opacity: .4; }
   <section class="panel" id="panel-aloud" aria-label="朗读面板">
     <div class="panel-head">朗读<button class="icon-btn" data-close aria-label="收起">⌄</button></div>
     <div class="panel-body">
-      <div style="display:flex;justify-content:center;gap:18px;padding:6px 0 4px">
-        <button class="icon-btn" aria-label="上一段">⏮</button>
-        <button class="icon-btn" style="width:56px;height:56px;background:var(--accent);color:#fff;font-size:24px" aria-label="暂停">❚❚</button>
-        <button class="icon-btn" aria-label="下一段">⏭</button>
-        <button class="icon-btn" aria-label="停止" data-toast="已停止朗读">■</button>
+      <div class="play-row">
+        <button class="icon-btn" aria-label="上一段" data-toast="从上一段开始朗读">⏮</button>
+        <button class="icon-btn play" id="playBtn" aria-label="暂停">❚❚</button>
+        <button class="icon-btn" aria-label="下一段" data-toast="跳到下一段">⏭</button>
+        <button class="icon-btn" aria-label="停止朗读" data-stop-aloud>■</button>
       </div>
-      <div class="slider-row"><span class="label">语速</span><span class="end">慢</span><input type="range" min="1" max="20" value="10"><span class="end">快</span><span class="value">1.0×</span></div>
-      <div class="slider-row"><span class="label">定时</span><span class="end">0</span><input type="range" min="0" max="180" value="30" data-unit="分钟"><span class="end">3h</span><span class="value">30分钟</span></div>
+      <div class="slider-row"><span class="label">语速</span><span class="end">慢</span><input type="range" min="1" max="20" value="10" id="ttsRate" aria-label="语速"><span class="end">快</span><button class="chip" id="rateFollow" aria-pressed="false">跟随系统</button></div>
+      <div class="slider-row"><span class="label">定时</span><span class="end">关</span><input type="range" min="0" max="180" step="10" value="30" data-unit="分钟" aria-label="定时停止"><span class="end">3h</span><span class="value">30分钟</span></div>
       <div class="tiles">
         <button class="tile" data-l3="voice">语音<small>晓晓</small></button>
-        <button class="tile" data-l3="engine">朗读引擎<small>Edge</small></button>
-        <button class="tile" data-toast="已切到后台朗读">后台朗读<small>返回桌面</small></button>
+        <button class="tile" data-l3="engine">朗读引擎<small>Edge 在线</small></button>
+        <button class="tile" data-l3="aloudset">朗读设置<small>后台、按键等</small></button>
+      </div>
+      <button class="wide-btn" data-toast="已切到后台朗读，回到桌面">后台朗读（回到桌面继续听）</button>
+    </div>
+  </section>
+
+  <!-- 二级：自动翻页（自动翻页时点正文中间出现） -->
+  <section class="panel" id="panel-auto" aria-label="自动翻页面板">
+    <div class="panel-head">自动翻页<button class="icon-btn" data-close aria-label="收起">⌄</button></div>
+    <div class="panel-body">
+      <div class="slider-row"><span class="label">速度</span><span class="end">慢</span><input type="range" min="5" max="60" value="20" data-unit="秒/页" aria-label="翻页间隔"><span class="end">快</span><span class="value">20秒/页</span></div>
+      <div class="tiles" style="grid-template-columns:1fr 1fr">
+        <button class="tile" data-l3="anim">翻页动画<small>仿真</small></button>
+        <button class="tile" id="stopAuto">停止自动翻页<small>回到手动</small></button>
       </div>
     </div>
   </section>
@@ -342,7 +369,7 @@ input[type=range]:disabled { opacity: .4; }
         <button class="tile" data-l3="indent">缩进<small>两字</small></button>
         <button class="tile" data-l3="convert">简繁<small>不转换</small></button>
         <button class="tile" data-l3="padding">边距<small>调整</small></button>
-        <button class="tile" data-l3="tip">页眉页脚<small>信息</small></button>
+        <button class="tile" data-l3="tip">页眉页脚<small>含正文标题</small></button>
       </div>
       <div class="group" style="margin-top:14px">
         <div class="row" data-switch><span class="t">共用排版<small>所有背景使用同一套字号、间距</small></span><span class="switch on"></span></div>
@@ -457,6 +484,7 @@ const render = () => {
   phone.classList.toggle('menu-open', state.menu)
   $$('.panel').forEach(p => p.classList.toggle('show', p.id === 'panel-' + state.panel))
   $$('.tab[data-panel]').forEach(t => t.classList.toggle('active', t.dataset.panel === state.panel))
+  $('#autoBtn').style.outline = state.panel === 'auto' ? '2px solid var(--accent)' : 
   $('#more').classList.toggle('show', state.more)
   $('#sheet3').classList.toggle('show', !!state.l3)
   $('#dim2').style.display = state.l3 ? 'block' : 'none'
@@ -476,7 +504,12 @@ const closeTop = () => {
   render()
 }
 $('#page').addEventListener('click', () => {
-  if (!state.menu) { state.menu = true; render(); return }
+  if (!state.menu) {
+    state.menu = true
+    // 正在自动翻页时，同时展开自动翻页面板
+    if ($('#autoBtn').classList.contains('on')) state.panel = 'auto'
+    render(); return
+  }
   closeTop()
 })
 $('#page').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('#page').click() } })
@@ -501,6 +534,7 @@ $('#autoBtn').addEventListener('click', () => {
   $('#autoBtn').textContent = on ? '❚❚ 停止翻页' : '▶ 自动翻页'
   if (on) { state.menu = false; state.panel = null; render(); toast('自动翻页已开始，点正文中间可调速度或停止') }
 })
+$('#stopAuto').addEventListener('click', () => { $('#autoBtn').click(); state.panel = null; render(); toast('已停止自动翻页') })
 
 // 「⋮」
 $('#moreBtn').addEventListener('click', e => { e.stopPropagation(); state.more = !state.more; render() })
@@ -543,6 +577,12 @@ brightness.addEventListener('input', () => {
   if ($('#followSys').classList.contains('on')) { setFollow(false); toast('已改为手动亮度') }
   phone.style.filter = `brightness(${0.55 + brightness.value / 255 * 0.5})`
 })
+$('#rateFollow').addEventListener('click', () => {
+  const on = !$('#rateFollow').classList.contains('on')
+  $('#rateFollow').classList.toggle('on', on); $('#ttsRate').disabled = on
+})
+document.addEventListener('click', e => { if (e.target.closest('[data-stop-aloud]')) { state.panel = null; render(); toast('已停止朗读') } })
+$('#playBtn').addEventListener('click', () => { const p = $('#playBtn').textContent === '❚❚'; $('#playBtn').textContent = p ? '▶' : '❚❚'; toast(p ? '已暂停' : '继续朗读') })
 $('#followSys').addEventListener('click', () => {
   const on = !$('#followSys').classList.contains('on'); setFollow(on)
   phone.style.filter = on ? '' : `brightness(${0.55 + brightness.value / 255 * 0.5})`
@@ -553,6 +593,7 @@ document.addEventListener('click', e => {
   const row = e.target.closest('[data-switch]')
   if (row) row.querySelector('.switch').classList.toggle('on')
   const seg = e.target.closest('.seg button')
+  if (seg && seg.parentElement.hasAttribute('data-tabs')) toast('切换到「' + seg.textContent + '」边距')
   if (seg) { seg.parentElement.querySelectorAll('button').forEach(b => b.classList.toggle('on', b === seg)) }
   const sw = e.target.closest('.swatch:not([data-l3])')
   if (sw) { sw.parentElement.querySelectorAll('.swatch').forEach(b => b.classList.toggle('on', b === sw)); $('#page').style.background = sw.style.background; $('#page').style.color = sw.style.color }
@@ -571,15 +612,79 @@ const L3 = {
   timeout: options('屏幕超时', ['跟随系统', '1 分钟', '5 分钟', '10 分钟', '常亮'], '10 分钟'),
   double: options('平板/横屏双页', ['自动', '始终单页', '始终双页'], '自动'),
   progress: options('进度条行为', ['页内进度', '章节进度'], '页内进度'),
-  voice: options('语音', ['晓晓（女）', '云希（男）', '晓伊（女）', '云健（男）'], '晓晓（女）'),
-  engine: options('朗读引擎', ['Edge 在线语音', '系统 TTS', '自定义 HTTP 语音'], 'Edge 在线语音'),
-  padding: { title: '边距', html: ['上', '下', '左', '右'].map(d => `<div class="slider-row"><span class="label">${d}边距</span><input type="range" min="0" max="60" value="${d === '上' || d === '下' ? 24 : 16}"><span class="value">${d === '上' || d === '下' ? 24 : 16}</span></div>`).join('') + '<div class="field-label">页眉 / 页脚边距在「页眉页脚」里调</div>' },
-  tip: { title: '页眉页脚', html: `<div class="group">${['页眉左：书名', '页眉右：时间', '页脚左：章节名', '页脚右：页码与进度'].map(x => `<div class="row" data-pick><span class="t">${x.split('：')[0]}</span><span class="v">${x.split('：')[1]}</span></div>`).join('')}<div class="row" data-switch><span class="t">显示分隔线</span><span class="switch on"></span></div></div>` },
-  bg: { title: '自定义背景', html: '<div class="tiles"><button class="tile">文字颜色<small>#2B2620</small></button><button class="tile">背景颜色<small>#F3ECDC</small></button><button class="tile">背景图片<small>选择</small></button></div><div class="slider-row" style="margin-top:6px"><span class="label">透明</span><input type="range" min="0" max="100" value="100"><span class="value">100</span></div>' },
+  voice: options('语音（选中立即生效）', ['晓晓（女）', '小艺（女）', '云健（男）', '云希（男）', '云夏（男童）', '云扬（男）', '小北（辽宁方言）', '小妮（陕西方言）'], '晓晓（女）'),
+  engine: options('朗读引擎', ['Edge 在线', '系统 TTS（跟随手机设置）', '自定义 HTTP 语音…'], 'Edge 在线'),
+  padding: { title: '边距', html: `<div class="seg" role="tablist" data-tabs><button class="on">页眉</button><button>正文</button><button>页脚</button></div>` + ['上', '下', '左', '右'].map(d => `<div class="slider-row"><span class="label">${d}边距</span><input type="range" min="0" max="60" value="${d === '上' || d === '下' ? 8 : 16}"><span class="value">${d === '上' || d === '下' ? 8 : 16}</span></div>`).join('') + '<div class="group"><div class="row" data-switch><span class="t">显示分隔线</span><span class="switch on"></span></div></div>' },
+  tip: { title: '标题与页眉页脚', html: `
+    <div class="group-title">正文标题</div>
+    <div class="seg"><button>居左</button><button class="on">居中</button><button>隐藏</button></div>
+    <div class="slider-row"><span class="label">字号</span><input type="range" min="0" max="10" value="4"><span class="value">+4</span></div>
+    <div class="slider-row"><span class="label">上间距</span><input type="range" min="0" max="100" value="20"><span class="value">20</span></div>
+    <div class="slider-row"><span class="label">下间距</span><input type="range" min="0" max="100" value="12"><span class="value">12</span></div>
+    <div class="group-title">页眉</div>
+    <div class="group">
+      <div class="row" data-l3="tipShow"><span class="t">显示</span><span class="v">跟随状态栏</span></div>
+      <div class="row" data-l3="tipItem"><span class="t">左</span><span class="v">书名</span></div>
+      <div class="row" data-l3="tipItem"><span class="t">中</span><span class="v">无</span></div>
+      <div class="row" data-l3="tipItem"><span class="t">右</span><span class="v">时间</span></div>
+    </div>
+    <div class="group-title">页脚</div>
+    <div class="group">
+      <div class="row" data-l3="tipShow"><span class="t">显示</span><span class="v">显示</span></div>
+      <div class="row" data-l3="tipItem"><span class="t">左</span><span class="v">章节名</span></div>
+      <div class="row" data-l3="tipItem"><span class="t">中</span><span class="v">无</span></div>
+      <div class="row" data-l3="tipItem"><span class="t">右</span><span class="v">页码与进度</span></div>
+    </div>
+    <div class="group-title">颜色</div>
+    <div class="group">
+      <div class="row"><span class="t">页眉页脚文字</span><span class="v">跟随正文<span class="color-dot" style="background:#2b2620"></span></span></div>
+      <div class="row"><span class="t">分隔线</span><span class="v">默认<span class="color-dot" style="background:#d8cfbd"></span></span></div>
+    </div>` },
+  bg: { title: '自定义背景', html: `
+    <div class="group">
+      <div class="row"><span class="t">样式名称</span><span class="v">米黄</span></div>
+      <div class="row"><span class="t">文字颜色</span><span class="v">#2B2620<span class="color-dot" style="background:#2b2620"></span></span></div>
+      <div class="row"><span class="t">背景颜色</span><span class="v">#F3ECDC<span class="color-dot" style="background:#f3ecdc"></span></span></div>
+    </div>
+    <div class="slider-row"><span class="label">背景透明</span><input type="range" min="0" max="100" value="100"><span class="value">100</span></div>
+    <div class="field-label">背景图片</div>
+    <div class="bg-grid"><div class="on" style="background:#f3ecdc"></div><div style="background:#e8dcc0"></div><div style="background:#dfe9f0"></div><div style="background:var(--panel-2);display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--text-2)">选图片</div></div>
+    <div class="group" style="margin-top:12px">
+      <div class="row" data-switch><span class="t">深色状态栏图标</span><span class="switch"></span></div>
+      <div class="row" data-switch><span class="t">文字下划线</span><span class="switch"></span></div>
+    </div>
+    <div class="tiles" style="grid-template-columns:1fr 1fr 1fr"><button class="tile">导入</button><button class="tile">导出</button><button class="tile">恢复默认</button></div>` },
+  aloudset: { title: '朗读设置', html: `
+    <div class="group-title">播放</div>
+    <div class="group">
+      <div class="row" data-switch><span class="t">按页朗读</span><span class="switch"></span></div>
+      <div class="row" data-switch><span class="t">单章循环</span><span class="switch"></span></div>
+      <div class="row" data-switch><span class="t">流式播放音频</span><span class="switch on"></span></div>
+    </div>
+    <div class="group-title">打断与后台</div>
+    <div class="group">
+      <div class="row" data-switch><span class="t">忽略音频焦点</span><span class="switch"></span></div>
+      <div class="row" data-switch><span class="t">来电期间暂停朗读</span><span class="switch on"></span></div>
+      <div class="row" data-switch><span class="t">朗读服务唤醒锁</span><span class="switch"></span></div>
+    </div>
+    <div class="group-title">耳机与媒体按键</div>
+    <div class="group">
+      <div class="row" data-switch><span class="t">媒体按钮·上一首/下一首</span><span class="switch"></span></div>
+      <div class="row" data-switch><span class="t">系统媒体控件兼容性更改</span><span class="switch"></span></div>
+    </div>
+    <div class="group-title">引擎</div>
+    <div class="group">
+      <div class="row" data-l3="engine"><span class="t">朗读引擎</span><span class="v">Edge 在线</span></div>
+      <div class="row"><span class="t">系统 TTS 设置</span><span class="v">打开</span></div>
+    </div>` },
+  anim: options('翻页动画', ['覆盖', '仿真', '滑动', '滚动', '无动画'], '仿真'),
+  tipShow: options('显示', ['跟随状态栏', '显示', '隐藏'], '跟随状态栏'),
+  tipItem: options('显示内容', ['无', '书名', '章节名', '时间', '电量', '页码', '进度', '页码与进度'], '书名'),
   click: { title: '点击区域设置', html: '<div class="field-label">把屏幕分成 9 格，每格可设为上一页、下一页、菜单等</div>' },
   slop: { title: '滑动翻页阈值', html: '<div class="slider-row"><span class="label">距离</span><input type="range" min="0" max="100" value="24"><span class="value">24px</span></div>' },
   keys: { title: '自定义翻页按键', html: '<div class="field-label">按下要绑定的按键</div>' },
 }
+const l3Stack = []
 const openL3 = key => {
   const c = L3[key]; if (!c) return
   $('#sheet3Title').textContent = c.title
@@ -590,15 +695,25 @@ const openL3 = key => {
 }
 document.addEventListener('click', e => {
   const t = e.target.closest('[data-l3]')
-  if (t) { e.stopPropagation(); openL3(t.dataset.l3) }
+  if (t) {
+    e.stopPropagation()
+    // 在弹层里再打开下一层（如页眉「左」的显示内容），选完回到上一层
+    if (t.closest('#sheet3') && state.l3) l3Stack.push(state.l3); else l3Stack.length = 0
+    openL3(t.dataset.l3)
+  }
   const pick = e.target.closest('#sheet3 [data-pick]')
   if (pick) {
     const v = pick.querySelector('.t').textContent
     toast('已设置：' + v)
-    state.l3 = null; render()
+    const back = l3Stack.pop()
+    if (back) openL3(back); else { state.l3 = null; render() }
   }
 }, true)
-$('#sheet3Close').addEventListener('click', () => { state.l3 = null; render() })
+$('#sheet3Close').addEventListener('click', () => {
+  const back = l3Stack.pop()
+  if (back) openL3(back); else { state.l3 = null; render() }
+})
+
 
 // 目录页
 const chapters = Array.from({ length: 30 }, (_, i) => `第${['一','二','三','四','五','六','七','八','九','十','十一','十二','十三','十四','十五','十六','十七','十八','十九','二十','二十一','二十二','二十三','二十四','二十五','二十六','二十七','二十八','二十九','三十'][i]}章 ${['入城','旧账','夜雨','茶棚','青轿','盘问','密信','对质','王法','暗流','清点','火起','收网','余波','归途','我就是王法','风声','对弈','长夜','破晓','入宫','面圣','削籍','南下','渡口','旧友','山寺','钟声','回京','尾声'][i]}`)

@@ -141,6 +141,7 @@ class ReadMenu @JvmOverloads constructor(
         } else {
             llBottomBg.setBackgroundColor(bgColor)
         }
+        vwBottomDivider.setBackgroundColor(ColorUtils.withAlpha(textColor, 0.12f))
         ivAutoPage.background = Selector.shapeBuild()
             .setCornerRadius(18.dpToPx())
             .setDefaultBgColor(ColorUtils.withAlpha(textColor, 0.08f))
