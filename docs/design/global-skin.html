@@ -1,0 +1,291 @@
+<!doctype html>
+<!--
+Interface: 阅读+ 全局换皮（方案 A）改前改后对比
+Goal: 不改页面结构，只把全软件通用组件（顶部栏、底部导航、列表行、开关、对话框、选择列表、弹出菜单、输入框、按钮）换成统一的现代样式
+Requirement changes:
+- 主题由 AppCompat（Material 第一代）换到新组件体系；统一圆角、字号层级、间距和强调色用法
+- 顶部栏改为与页面同底色、标题加粗，主题色只用于强调（选中、开关、主按钮）
+- 设置页按分组画成圆角卡片，行高 52–56，行间细分隔线；开关换成胶囊开关
+- 对话框改为大圆角卡片，底部两个胶囊按钮；选择列表带 ✓；弹出菜单圆角、分组分隔线
+- 书架、详情等页面结构不变（结构重排是方案 B）
+Key assumptions:
+- 强调色跟随用户主题设置，示意用蓝色；深色模式、电子墨水屏模式同步适配
+Covered states:
+- 书架（列表）、我的/设置页、确认对话框、输入对话框、选择列表、弹出菜单；开关可切换、菜单可展开
+-->
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>全局换皮对比</title>
+<style>
+:root { --accent: #1d7cf2; --old-primary: #795548; --old-accent: #ad1457; }
+* { box-sizing: border-box; }
+body { margin: 0; background: #e7e7ea; font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; color: #222; }
+header.top { padding: 20px 24px 8px; max-width: 900px; margin: 0 auto; }
+header.top h1 { font-size: 18px; margin: 0 0 6px; }
+header.top p { margin: 0; font-size: 13px; color: #666; line-height: 1.7; }
+.scene-tabs { display: flex; gap: 8px; flex-wrap: wrap; max-width: 900px; margin: 12px auto 0; padding: 0 24px; }
+.scene-tabs button { border: 0; border-radius: 18px; padding: 8px 16px; background: #fff; font-size: 14px; cursor: pointer; color: #333; }
+.scene-tabs button.on { background: #222; color: #fff; }
+.stage { display: flex; justify-content: center; gap: 28px; flex-wrap: wrap; padding: 20px 16px 40px; }
+.col { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.col .cap { font-size: 13px; color: #555; }
+.col .cap b { color: #222; }
+.phone { position: relative; width: 340px; height: 700px; border-radius: 30px; overflow: hidden; background: #fafafa; box-shadow: 0 14px 40px rgba(0,0,0,.2); }
+.scene { display: none; }
+.scene.on { display: contents; }
+
+/* ---------- 改前：AppCompat 老样式 ---------- */
+.old { font-family: Roboto, "Microsoft YaHei", sans-serif; background: #fafafa; }
+.old .bar { height: 84px; padding: 36px 14px 0; background: var(--old-primary); color: #fff; display: flex; align-items: center; gap: 14px; font-size: 19px; box-shadow: 0 2px 4px rgba(0,0,0,.25); }
+.old .bar .sp { flex: 1; }
+.old .tabs { display: flex; background: var(--old-primary); color: rgba(255,255,255,.7); font-size: 13px; }
+.old .tabs span { flex: 1; text-align: center; padding: 10px 0; }
+.old .tabs span.on { color: #fff; border-bottom: 2px solid var(--old-accent); }
+.old .book { display: flex; gap: 10px; padding: 8px 10px; border-bottom: 1px solid #ddd; background: #fff; }
+.old .cover { width: 56px; height: 76px; background: #c9b9a6; flex: none; }
+.old .book .info { font-size: 12px; color: #666; line-height: 1.6; }
+.old .book .info b { font-size: 15px; color: #000; font-weight: 400; }
+.old .bnv { position: absolute; bottom: 0; left: 0; right: 0; height: 56px; background: #fff; display: flex; box-shadow: 0 -1px 3px rgba(0,0,0,.2); font-size: 11px; color: #777; }
+.old .bnv span { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
+.old .bnv span.on { color: var(--old-primary); }
+.old .pref-cat { color: var(--old-accent); font-size: 13px; padding: 16px 16px 6px; }
+.old .pref { padding: 14px 16px; font-size: 15px; border-bottom: 1px solid #e3e3e3; display: flex; align-items: center; background: #fafafa; }
+.old .pref .t { flex: 1; }
+.old .pref small { display: block; color: #888; font-size: 12px; margin-top: 2px; }
+.old .sw { width: 34px; height: 14px; border-radius: 7px; background: #bbb; position: relative; }
+.old .sw::after { content: ""; position: absolute; top: -3px; left: -2px; width: 20px; height: 20px; border-radius: 50%; background: #f1f1f1; box-shadow: 0 1px 3px rgba(0,0,0,.4); }
+.old .sw.on { background: #e79ab5; }
+.old .sw.on::after { left: 16px; background: var(--old-accent); }
+.old .dim { position: absolute; inset: 0; background: rgba(0,0,0,.5); display: flex; align-items: center; justify-content: center; }
+.old .dlg { width: 290px; background: #fff; border-radius: 2px; box-shadow: 0 8px 24px rgba(0,0,0,.4); padding: 22px 22px 8px; font-size: 15px; }
+.old .dlg h3 { margin: 0 0 14px; font-size: 19px; font-weight: 500; }
+.old .dlg .btns { display: flex; justify-content: flex-end; gap: 4px; margin-top: 18px; }
+.old .dlg .btns span { color: var(--old-accent); padding: 10px 8px; font-size: 14px; text-transform: uppercase; }
+.old .dlg .item { padding: 13px 0; font-size: 15px; }
+.old .dlg input { width: 100%; border: 0; border-bottom: 2px solid var(--old-accent); font-size: 15px; padding: 6px 0; outline: none; }
+.old .menu { position: absolute; top: 40px; right: 6px; width: 190px; background: #fff; box-shadow: 0 4px 12px rgba(0,0,0,.35); border-radius: 2px; padding: 6px 0; font-size: 15px; }
+.old .menu div { padding: 12px 16px; }
+
+/* ---------- 改后：方案 A ---------- */
+.new { background: #f5f5f7; color: #1f1f1f; }
+.new .bar { height: 84px; padding: 36px 8px 0 18px; display: flex; align-items: center; gap: 6px; background: #f5f5f7; }
+.new .bar h2 { flex: 1; margin: 0; font-size: 22px; font-weight: 700; }
+.new .ib { width: 40px; height: 40px; border-radius: 20px; border: 0; background: none; font-size: 18px; color: #333; cursor: pointer; }
+.new .ib:hover { background: rgba(0,0,0,.06); }
+.new .chips { display: flex; gap: 8px; padding: 6px 16px 10px; }
+.new .chips span { padding: 6px 14px; border-radius: 16px; background: #fff; font-size: 13px; color: #555; }
+.new .chips span.on { background: color-mix(in srgb, var(--accent) 12%, white); color: var(--accent); font-weight: 600; }
+.new .list { margin: 0 12px; background: #fff; border-radius: 14px; overflow: hidden; }
+.new .book { display: flex; gap: 12px; padding: 12px 14px; position: relative; }
+.new .book + .book::before { content: ""; position: absolute; top: 0; left: 82px; right: 14px; border-top: 1px solid #eee; }
+.new .cover { width: 52px; height: 72px; border-radius: 6px; background: linear-gradient(160deg, #d9c6ad, #b39a7e); flex: none; box-shadow: 0 2px 6px rgba(0,0,0,.15); }
+.new .book .info { flex: 1; min-width: 0; font-size: 12px; color: #8a8a8a; line-height: 1.7; }
+.new .book .info b { display: block; font-size: 15px; color: #1f1f1f; font-weight: 600; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.new .badge { position: absolute; right: 14px; top: 14px; min-width: 18px; height: 18px; border-radius: 9px; background: var(--accent); color: #fff; font-size: 11px; text-align: center; line-height: 18px; padding: 0 5px; }
+.new .bnv { position: absolute; bottom: 0; left: 0; right: 0; height: 64px; background: rgba(255,255,255,.96); display: flex; border-top: 1px solid #eee; font-size: 11px; color: #777; padding-bottom: 6px; }
+.new .bnv span { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; }
+.new .bnv i { font-style: normal; font-size: 18px; width: 52px; height: 28px; border-radius: 14px; display: flex; align-items: center; justify-content: center; }
+.new .bnv span.on { color: var(--accent); font-weight: 600; }
+.new .bnv span.on i { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.new .gt { font-size: 12px; color: #8a8a8a; margin: 16px 28px 6px; }
+.new .group { margin: 0 12px; background: #fff; border-radius: 14px; overflow: hidden; }
+.new .row { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 8px 16px; position: relative; font-size: 15px; cursor: pointer; }
+.new .row + .row::before { content: ""; position: absolute; top: 0; left: 16px; right: 16px; border-top: 1px solid #f0f0f0; }
+.new .row .t { flex: 1; }
+.new .row small { display: block; color: #8a8a8a; font-size: 12px; margin-top: 2px; }
+.new .row .v { color: #8a8a8a; font-size: 13px; }
+.new .row .v::after { content: "  ›"; color: #bbb; }
+.new .row .ico { width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 15px; flex: none; }
+.new .switch { width: 44px; height: 26px; border-radius: 13px; background: #d5d5d8; position: relative; flex: none; transition: background .15s; }
+.new .switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.2); transition: transform .15s; }
+.new .switch.on { background: var(--accent); }
+.new .switch.on::after { transform: translateX(18px); }
+.new .dim { position: absolute; inset: 0; background: rgba(0,0,0,.32); display: flex; align-items: center; justify-content: center; }
+.new .dlg { width: 296px; background: #fff; border-radius: 20px; padding: 22px 20px 16px; box-shadow: 0 16px 40px rgba(0,0,0,.25); }
+.new .dlg h3 { margin: 0 0 8px; font-size: 17px; text-align: center; }
+.new .dlg p { margin: 0; color: #666; font-size: 14px; line-height: 1.6; text-align: center; }
+.new .dlg .btns { display: flex; gap: 10px; margin-top: 20px; }
+.new .dlg .btns button { flex: 1; height: 42px; border: 0; border-radius: 21px; font-size: 15px; cursor: pointer; background: #f0f0f2; color: #333; }
+.new .dlg .btns button.pri { background: var(--accent); color: #fff; font-weight: 600; }
+.new .dlg input { width: 100%; height: 44px; border: 1.5px solid transparent; border-radius: 12px; background: #f2f3f5; padding: 0 14px; font-size: 15px; outline: none; margin-top: 12px; }
+.new .dlg input:focus { border-color: var(--accent); background: #fff; }
+.new .sheet { position: absolute; left: 10px; right: 10px; bottom: 10px; background: #fff; border-radius: 20px; padding: 6px 0 12px; box-shadow: 0 10px 40px rgba(0,0,0,.25); }
+.new .sheet h3 { margin: 0; padding: 14px 20px 10px; font-size: 16px; }
+.new .sheet .opt { margin: 0 12px; background: #f6f6f8; border-radius: 12px; overflow: hidden; }
+.new .sheet .opt div { height: 50px; display: flex; align-items: center; padding: 0 16px; font-size: 15px; position: relative; cursor: pointer; }
+.new .sheet .opt div + div::before { content: ""; position: absolute; top: 0; left: 16px; right: 16px; border-top: 1px solid #ebebed; }
+.new .sheet .opt div.on { color: var(--accent); font-weight: 600; }
+.new .sheet .opt div.on::after { content: "✓"; margin-left: auto; }
+.new .pmenu { position: absolute; top: 76px; right: 10px; width: 200px; background: #fff; border-radius: 14px; box-shadow: 0 10px 30px rgba(0,0,0,.18); padding: 6px 0; font-size: 15px; display: none; }
+.new .pmenu.show { display: block; }
+.new .pmenu div { height: 44px; display: flex; align-items: center; padding: 0 16px; cursor: pointer; }
+.new .pmenu div:hover { background: #f5f5f7; }
+.new .pmenu hr { border: 0; border-top: 1px solid #eee; margin: 4px 0; }
+.new .fab { position: absolute; right: 18px; bottom: 84px; height: 48px; padding: 0 20px; border-radius: 24px; background: var(--accent); color: #fff; display: flex; align-items: center; gap: 6px; font-size: 15px; box-shadow: 0 6px 16px rgba(29,124,242,.35); }
+.legend { max-width: 900px; margin: 0 auto 30px; padding: 0 24px; font-size: 13px; color: #555; line-height: 1.8; }
+.legend b { color: #222; }
+@media (max-width: 760px) { .phone { width: 320px; } }
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>方案 A：全局换皮 · 改前改后对比</h1>
+  <p>只换通用组件的样子，页面结构不动。左边是现状示意（按现在的默认主题和组件画的），右边是改后。强调色跟随你的主题设置，示意用蓝色。</p>
+</header>
+<nav class="scene-tabs" role="tablist">
+  <button class="on" data-scene="shelf">书架</button>
+  <button data-scene="mine">我的 / 设置页</button>
+  <button data-scene="dialog">对话框</button>
+  <button data-scene="pick">选择列表 · 弹出菜单</button>
+</nav>
+
+<main class="stage">
+  <!-- 书架 -->
+  <div class="scene on" data-scene="shelf">
+    <div class="col"><div class="cap"><b>改前</b>（现状示意）</div>
+      <div class="phone old">
+        <div class="bar"><span>书架</span><span class="sp"></span><span>⌕</span><span>⋮</span></div>
+        <div class="tabs"><span class="on">全部</span><span>本地</span><span>未分组</span><span>养肥区</span></div>
+        <div class="book"><div class="cover"></div><div class="info"><b>诡秘之主</b><br>爱潜水的乌贼<br>读到：第十六章 我就是王法<br>最新：第一千四百章 尾声</div></div>
+        <div class="book"><div class="cover"></div><div class="info"><b>三体</b><br>刘慈欣<br>读到：第三十二章<br>最新：后记</div></div>
+        <div class="book"><div class="cover"></div><div class="info"><b>明朝那些事儿</b><br>当年明月<br>读到：第七章<br>最新：第二十一章</div></div>
+        <div class="bnv"><span class="on">▤<br>书架</span><span>◎<br>发现</span><span>◈<br>订阅</span><span>☺<br>我的</span></div>
+      </div>
+    </div>
+    <div class="col"><div class="cap"><b>改后</b>（方案 A）</div>
+      <div class="phone new">
+        <div class="bar"><h2>书架</h2><button class="ib" aria-label="搜索">⌕</button><button class="ib" data-menu aria-label="更多">⋮</button></div>
+        <div class="chips"><span class="on">全部</span><span>本地</span><span>未分组</span><span>养肥区</span></div>
+        <div class="list">
+          <div class="book"><div class="cover"></div><div class="info"><b>诡秘之主</b>爱潜水的乌贼<br>读到 第十六章 我就是王法<br>最新 第一千四百章 尾声</div><span class="badge">3</span></div>
+          <div class="book"><div class="cover" style="background:linear-gradient(160deg,#b9c7d6,#7f93aa)"></div><div class="info"><b>三体</b>刘慈欣<br>读到 第三十二章<br>最新 后记</div></div>
+          <div class="book"><div class="cover" style="background:linear-gradient(160deg,#d6c4c4,#a78484)"></div><div class="info"><b>明朝那些事儿</b>当年明月<br>读到 第七章<br>最新 第二十一章</div><span class="badge">14</span></div>
+        </div>
+        <div class="pmenu"><div>添加本地书</div><div>添加网址</div><hr><div>书架管理</div><div>书架布局</div><hr><div>更新目录</div></div>
+        <div class="bnv"><span class="on"><i>▤</i>书架</span><span><i>◎</i>发现</span><span><i>◈</i>订阅</span><span><i>☺</i>我的</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 我的 / 设置 -->
+  <div class="scene" data-scene="mine">
+    <div class="col"><div class="cap"><b>改前</b>（现状示意）</div>
+      <div class="phone old">
+        <div class="bar"><span>我的</span></div>
+        <div class="pref"><span class="t">书源管理</span></div>
+        <div class="pref"><span class="t">替换净化</span></div>
+        <div class="pref"><span class="t">Web 服务<small>http://192.168.31.246:1122</small></span><span class="sw on"></span></div>
+        <div class="pref-cat">设置</div>
+        <div class="pref"><span class="t">备份与恢复</span></div>
+        <div class="pref"><span class="t">主题设置</span></div>
+        <div class="pref"><span class="t">其他设置</span></div>
+        <div class="pref-cat">其他</div>
+        <div class="pref"><span class="t">书签</span></div>
+        <div class="pref"><span class="t">阅读记录</span></div>
+        <div class="bnv"><span>▤<br>书架</span><span>◎<br>发现</span><span>◈<br>订阅</span><span class="on">☺<br>我的</span></div>
+      </div>
+    </div>
+    <div class="col"><div class="cap"><b>改后</b>（方案 A）</div>
+      <div class="phone new">
+        <div class="bar"><h2>我的</h2></div>
+        <div class="group">
+          <div class="row"><span class="ico" style="background:#4c8bf5">源</span><span class="t">书源管理</span><span class="v"></span></div>
+          <div class="row"><span class="ico" style="background:#34a853">净</span><span class="t">替换净化</span><span class="v"></span></div>
+          <div class="row" data-switch><span class="ico" style="background:#f29d38">网</span><span class="t">Web 服务<small>192.168.31.246:1122</small></span><span class="switch on"></span></div>
+        </div>
+        <div class="gt">设置</div>
+        <div class="group">
+          <div class="row"><span class="ico" style="background:#8e6cef">备</span><span class="t">备份与恢复</span><span class="v"></span></div>
+          <div class="row"><span class="ico" style="background:#ef6c8e">色</span><span class="t">主题设置</span><span class="v"></span></div>
+          <div class="row"><span class="ico" style="background:#7a8590">设</span><span class="t">其他设置</span><span class="v"></span></div>
+        </div>
+        <div class="gt">其他</div>
+        <div class="group">
+          <div class="row"><span class="ico" style="background:#e8a33d">签</span><span class="t">书签</span><span class="v"></span></div>
+          <div class="row"><span class="ico" style="background:#3db7c4">记</span><span class="t">阅读记录</span><span class="v"></span></div>
+        </div>
+        <div class="bnv"><span><i>▤</i>书架</span><span><i>◎</i>发现</span><span><i>◈</i>订阅</span><span class="on"><i>☺</i>我的</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 对话框 -->
+  <div class="scene" data-scene="dialog">
+    <div class="col"><div class="cap"><b>改前</b>（现状示意）</div>
+      <div class="phone old">
+        <div class="bar"><span>书架</span></div>
+        <div class="dim"><div class="dlg"><h3>删除书籍</h3>确定删除《三体》吗？本地缓存的章节也会一起删除。<div class="btns"><span>取消</span><span>确定</span></div></div></div>
+      </div>
+    </div>
+    <div class="col"><div class="cap"><b>改后</b>（方案 A）· 确认</div>
+      <div class="phone new">
+        <div class="bar"><h2>书架</h2></div>
+        <div class="dim"><div class="dlg"><h3>删除书籍</h3><p>确定删除《三体》吗？<br>本地缓存的章节也会一起删除。</p><div class="btns"><button>取消</button><button class="pri" style="background:#e5484d">删除</button></div></div></div>
+      </div>
+    </div>
+    <div class="col"><div class="cap"><b>改后</b>（方案 A）· 输入</div>
+      <div class="phone new">
+        <div class="bar"><h2>书架</h2></div>
+        <div class="dim"><div class="dlg"><h3>添加网址</h3><p>粘贴书籍详情页或订阅地址</p><input placeholder="https://" aria-label="网址"><div class="btns"><button>取消</button><button class="pri">添加</button></div></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 选择列表 · 弹出菜单 -->
+  <div class="scene" data-scene="pick">
+    <div class="col"><div class="cap"><b>改前</b>（现状示意）</div>
+      <div class="phone old">
+        <div class="bar"><span>主题设置</span><span class="sp"></span><span>⋮</span></div>
+        <div class="menu"><div>导入主题</div><div>导出主题</div><div>恢复默认</div></div>
+        <div class="dim" style="top:240px;background:rgba(0,0,0,.5)"><div class="dlg"><h3>主题模式</h3><div class="item">跟随系统</div><div class="item">浅色</div><div class="item">深色</div><div class="item">电子墨水屏</div></div></div>
+      </div>
+    </div>
+    <div class="col"><div class="cap"><b>改后</b>（方案 A）· 点 ⋮ 展开菜单</div>
+      <div class="phone new">
+        <div class="bar"><h2>主题设置</h2><button class="ib" data-menu aria-label="更多">⋮</button></div>
+        <div class="group">
+          <div class="row" data-pick><span class="t">主题模式</span><span class="v">跟随系统</span></div>
+          <div class="row" data-switch><span class="t">沉浸式状态栏</span><span class="switch on"></span></div>
+          <div class="row" data-switch><span class="t">底部导航栏透明</span><span class="switch"></span></div>
+        </div>
+        <div class="pmenu"><div>导入主题</div><div>导出主题</div><hr><div>恢复默认</div></div>
+        <div class="dim" id="pickDim" style="display:none"><div class="sheet"><h3>主题模式</h3><div class="opt"><div class="on">跟随系统</div><div>浅色</div><div>深色</div><div>电子墨水屏</div></div></div></div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<section class="legend">
+  <b>统一规范（实现时套用到全软件）：</b>
+  顶部栏与页面同底色、标题加粗 · 列表分组为圆角卡片（圆角 14）、行高 52–56、行间细分隔线 ·
+  开关为胶囊开关、滑杆为粗轨道圆形拇指 · 对话框圆角 20、底部两个胶囊按钮（危险操作用红色）·
+  选择列表为带 ✓ 的卡片 · 弹出菜单圆角 14、分组分隔线 · 输入框为浅灰圆角填充、聚焦时描边强调色 ·
+  底部导航选中项为强调色并带图标底色 · 封面圆角 6 加轻阴影。
+</section>
+
+<script>
+const $$ = s => [...document.querySelectorAll(s)]
+$$('.scene-tabs button').forEach(b => b.addEventListener('click', () => {
+  $$('.scene-tabs button').forEach(x => x.classList.toggle('on', x === b))
+  $$('.scene').forEach(s => s.classList.toggle('on', s.dataset.scene === b.dataset.scene))
+}))
+document.addEventListener('click', e => {
+  const sw = e.target.closest('[data-switch]')
+  if (sw) sw.querySelector('.switch').classList.toggle('on')
+  const m = e.target.closest('[data-menu]')
+  const phone = e.target.closest('.phone')
+  if (m) { phone.querySelector('.pmenu').classList.toggle('show'); return }
+  if (phone && !e.target.closest('.pmenu')) phone.querySelectorAll('.pmenu').forEach(p => p.classList.remove('show'))
+  if (e.target.closest('[data-pick]')) document.getElementById('pickDim').style.display = 'flex'
+  const opt = e.target.closest('.sheet .opt div')
+  if (opt) {
+    opt.parentElement.querySelectorAll('div').forEach(d => d.classList.toggle('on', d === opt))
+    document.querySelector('[data-pick] .v').textContent = opt.textContent
+    document.getElementById('pickDim').style.display = 'none'
+  } else if (e.target.id === 'pickDim') document.getElementById('pickDim').style.display = 'none'
+})
+</script>
+</body>
+</html>
