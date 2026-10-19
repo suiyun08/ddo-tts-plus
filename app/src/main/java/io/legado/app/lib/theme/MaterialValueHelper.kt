@@ -142,7 +142,8 @@ val Context.elevation: Float
 val Context.filletBackground: GradientDrawable
     get() {
         val background = GradientDrawable()
-        background.cornerRadius = 3f.dpToPx()
+        // 对话框大圆角
+        background.cornerRadius = 20f.dpToPx()
         background.setColor(backgroundColor)
         return background
     }

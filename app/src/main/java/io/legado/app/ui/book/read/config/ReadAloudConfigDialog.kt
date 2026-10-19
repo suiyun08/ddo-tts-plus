@@ -95,14 +95,12 @@ class ReadAloudConfigDialog : BasePrefDialogFragment() {
             }
         }
 
+        override val groupCardTextColor: Int
+            get() = requireContext().menuTextColor
+
         override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
             super.onViewCreated(view, savedInstanceState)
             listView.setEdgeEffectColor(primaryColor)
-            // 每组设置画成一张圆角卡片，与阅读菜单的设置面板一致
-            setDivider(null)
-            listView.addItemDecoration(GroupCardDecoration(requireContext().menuTextColor))
-            listView.setPadding(0, 0, 0, 12.dpToPx())
-            listView.clipToPadding = false
         }
 
         override fun onResume() {

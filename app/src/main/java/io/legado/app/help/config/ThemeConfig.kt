@@ -263,8 +263,9 @@ object ThemeConfig {
                 }
                 val bBackground =
                     getPrefInt(PreferKey.cNBBackground, getCompatColor(R.color.md_grey_850))
+                // 顶部栏、状态栏与页面同底色，主题色只用于强调（选中、开关、主按钮）
                 ThemeStore.editTheme(this)
-                    .primaryColor(ColorUtils.withAlpha(primary, 1f))
+                    .primaryColor(ColorUtils.withAlpha(background, 1f))
                     .accentColor(ColorUtils.withAlpha(accent, 1f))
                     .backgroundColor(ColorUtils.withAlpha(background, 1f))
                     .bottomBackground(ColorUtils.withAlpha(bBackground, 1f))
@@ -284,8 +285,9 @@ object ThemeConfig {
                 }
                 val bBackground =
                     getPrefInt(PreferKey.cBBackground, getCompatColor(R.color.md_grey_200))
+                // 顶部栏、状态栏与页面同底色，主题色只用于强调（选中、开关、主按钮）
                 ThemeStore.editTheme(this)
-                    .primaryColor(ColorUtils.withAlpha(primary, 1f))
+                    .primaryColor(ColorUtils.withAlpha(background, 1f))
                     .accentColor(ColorUtils.withAlpha(accent, 1f))
                     .backgroundColor(ColorUtils.withAlpha(background, 1f))
                     .bottomBackground(ColorUtils.withAlpha(bBackground, 1f))

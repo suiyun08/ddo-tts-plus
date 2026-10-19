@@ -129,9 +129,8 @@ class ReadMenu @JvmOverloads constructor(
             titleBar.setTextColor(textColor)
             titleBar.setBackgroundColor(bgColor)
             titleBar.setColorFilter(textColor)
-        } else if (reset) {
-            val bgColor = context.primaryColor
-            val textColor = context.primaryTextColor
+        } else {
+            // 顶部栏与底部菜单栏同色
             titleBar.setTextColor(textColor)
             titleBar.setBackgroundColor(bgColor)
             titleBar.setColorFilter(textColor)

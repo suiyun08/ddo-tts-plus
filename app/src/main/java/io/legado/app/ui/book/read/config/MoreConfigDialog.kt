@@ -105,16 +105,12 @@ class MoreConfigDialog : BasePrefDialogFragment() {
             }
         }
 
+        override val groupCardTextColor: Int
+            get() = requireContext().menuTextColor
+
         override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
             super.onViewCreated(view, savedInstanceState)
             listView.setEdgeEffectColor(primaryColor)
-            // 每组设置画成一张圆角卡片，组内各项之间有分隔线
-            setDivider(null)
-            val bg = requireContext().bottomBackground
-            val textColor = requireContext().getPrimaryTextColor(ColorUtils.isColorLight(bg))
-            listView.addItemDecoration(GroupCardDecoration(textColor))
-            listView.setPadding(0, 0, 0, 12.dpToPx())
-            listView.clipToPadding = false
         }
 
         /** 选项类设置用阅读菜单统一的选择列表弹出 */

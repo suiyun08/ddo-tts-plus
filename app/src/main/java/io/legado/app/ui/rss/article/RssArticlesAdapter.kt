@@ -1,6 +1,7 @@
 package io.legado.app.ui.rss.article
 
 import android.annotation.SuppressLint
+import androidx.core.text.HtmlCompat
 import android.content.Context
 import android.graphics.drawable.Drawable
 import android.view.ViewGroup
@@ -36,6 +37,13 @@ class RssArticlesAdapter(context: Context, callBack: CallBack) :
     ) {
         binding.run {
             tvTitle.text = item.title
+            // 摘要：去掉 HTML 标签后最多两行，没有就不显示
+            val summary = item.description?.let {
+                HtmlCompat.fromHtml(it, HtmlCompat.FROM_HTML_MODE_LEGACY).toString()
+                    .replace(Regex("\\s+"), " ").trim()
+            }
+            tvDescription.text = summary
+            tvDescription.visible(!summary.isNullOrBlank())
             tvPubDate.text = item.pubDate
             if (item.image.isNullOrBlank() && !callBack.isGridLayout) {
                 imageView.gone()

@@ -53,8 +53,9 @@ class ReadRssViewModel(application: Application) : BaseViewModel(application) {
                 rssStar = appDb.rssStarDao.get(origin, link)
                 rssArticle = rssStar?.toRssArticle() ?: appDb.rssArticleDao.get(origin, link)
                 val rssArticle = rssArticle ?: return@execute
-                if (!rssArticle.description.isNullOrBlank()) {
-                    contentLiveData.postValue(rssArticle.description!!)
+                val body = articleBody(rssArticle)
+                if (!body.isNullOrBlank()) {
+                    contentLiveData.postValue(body)
                 } else {
                     rssSource?.let {
                         val ruleContent = it.ruleContent
@@ -109,9 +110,22 @@ class ReadRssViewModel(application: Application) : BaseViewModel(application) {
             }
     }
 
+    /**
+     * 文章正文：标准 RSS 的全文在 content:encoded，description 往往只是摘要，有全文时优先用全文
+     */
+    private fun articleBody(rssArticle: RssArticle): String? {
+        val content = rssArticle.content
+        val description = rssArticle.description
+        return if (!content.isNullOrBlank() && content.length >= (description?.length ?: 0)) {
+            content
+        } else {
+            description
+        }
+    }
+
     fun refresh(finish: () -> Unit) {
         val rssArticle = rssArticle ?: return finish.invoke()
-        if (!rssArticle.description.isNullOrBlank()) {
+        if (!articleBody(rssArticle).isNullOrBlank()) {
             return finish.invoke()
         }
         val rssSource = rssSource ?: let {

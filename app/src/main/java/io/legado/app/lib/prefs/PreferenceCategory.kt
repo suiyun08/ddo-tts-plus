@@ -10,6 +10,7 @@ import androidx.preference.PreferenceViewHolder
 import io.legado.app.R
 import io.legado.app.help.config.AppConfig
 import io.legado.app.lib.theme.accentColor
+import io.legado.app.lib.theme.getPrimaryTextColor
 import io.legado.app.lib.theme.backgroundColor
 import io.legado.app.utils.ColorUtils
 
@@ -28,7 +29,14 @@ class PreferenceCategory(context: Context, attrs: AttributeSet) :
         if (view is TextView) {  //  && !view.isInEditMode
             view.text = title
             if (view.isInEditMode) return
-            view.setTextColor(context.accentColor)
+            // 分组标题：灰色小字，不再用强调色
+            view.setTextColor(
+                ColorUtils.withAlpha(
+                    context.getPrimaryTextColor(ColorUtils.isColorLight(context.backgroundColor)),
+                    0.5f
+                )
+            )
+            view.textSize = 12f
             view.isVisible = !title.isNullOrEmpty()
 
             val da = holder.findViewById(R.id.preference_divider_above)

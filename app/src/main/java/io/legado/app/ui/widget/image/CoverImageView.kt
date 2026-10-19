@@ -5,6 +5,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.RectF
 import android.graphics.Typeface
 import android.graphics.drawable.Drawable
 import android.text.TextPaint
@@ -86,19 +87,12 @@ class CoverImageView @JvmOverloads constructor(
         viewWidth = width.toFloat()
         viewHeight = height.toFloat()
         filletPath.reset()
-        if (width > 10 && viewHeight > 10) {
-            filletPath.apply {
-                moveTo(10f, 0f)
-                lineTo(viewWidth - 10, 0f)
-                quadTo(viewWidth, 0f, viewWidth, 10f)
-                lineTo(viewWidth, viewHeight - 10)
-                quadTo(viewWidth, viewHeight, viewWidth - 10, viewHeight)
-                lineTo(10f, viewHeight)
-                quadTo(0f, viewHeight, 0f, viewHeight - 10)
-                lineTo(0f, 10f)
-                quadTo(0f, 0f, 10f, 0f)
-                close()
-            }
+        // 封面圆角 6dp
+        val radius = 6 * resources.displayMetrics.density
+        if (viewWidth > radius * 2 && viewHeight > radius * 2) {
+            filletPath.addRoundRect(
+                RectF(0f, 0f, viewWidth, viewHeight), radius, radius, Path.Direction.CW
+            )
         }
     }
 

@@ -1,6 +1,10 @@
 package io.legado.app.lib.theme.view
 
 import android.content.Context
+import io.legado.app.utils.dpToPx
+import com.google.android.material.shape.ShapeAppearanceModel
+import com.google.android.material.shape.RelativeCornerSize
+import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.util.AttributeSet
@@ -34,6 +38,17 @@ class ThemeBottomNavigationVIew(context: Context, attrs: AttributeSet) :
         if (AppConfig.isEInkMode) {
             isItemHorizontalTranslationEnabled = false
             itemBackground = ColorDrawable(Color.TRANSPARENT)
+        } else {
+            // 选中项图标下方加强调色淡底的胶囊
+            isItemActiveIndicatorEnabled = true
+            itemActiveIndicatorColor = ColorStateList.valueOf(
+                ColorUtils.withAlpha(ThemeStore.accentColor(context), 0.14f)
+            )
+            itemActiveIndicatorShapeAppearance = ShapeAppearanceModel.builder()
+                .setAllCornerSizes(RelativeCornerSize(0.5f))
+                .build()
+            itemActiveIndicatorWidth = 56.dpToPx()
+            itemActiveIndicatorHeight = 30.dpToPx()
         }
 
         ViewCompat.setOnApplyWindowInsetsListener(this, null)

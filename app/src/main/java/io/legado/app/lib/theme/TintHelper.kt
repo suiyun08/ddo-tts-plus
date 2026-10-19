@@ -2,6 +2,9 @@ package io.legado.app.lib.theme
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.graphics.drawable.StateListDrawable
+import android.graphics.drawable.GradientDrawable
+import android.graphics.Color
 import android.content.res.ColorStateList
 import android.graphics.PorterDuff
 import android.graphics.drawable.Drawable
@@ -420,27 +423,32 @@ object TintHelper {
         }
     }
 
+    /**
+     * 胶囊开关：开启时轨道为强调色，关闭时为灰色，拇指为白色圆形（与轨道留出间距）
+     */
     fun setTint(switchView: SwitchCompat, @ColorInt color: Int, useDarker: Boolean) {
-        if (switchView.trackDrawable != null) {
-            switchView.trackDrawable = modifySwitchDrawable(
-                switchView.context,
-                switchView.trackDrawable,
-                color,
-                thumb = false,
-                compatSwitch = true,
-                useDarker = useDarker
-            )
+        val density = switchView.resources.displayMetrics.density
+        val height = (28 * density).toInt()
+        val offColor = if (useDarker) 0xFF5A5A5E.toInt() else 0xFFD3D3D6.toInt()
+        fun pill(fill: Int) = GradientDrawable().apply {
+            cornerRadius = height / 2f
+            setColor(fill)
+            setSize((48 * density).toInt(), height)
         }
-        if (switchView.thumbDrawable != null) {
-            switchView.thumbDrawable = modifySwitchDrawable(
-                switchView.context,
-                switchView.thumbDrawable,
-                color,
-                thumb = true,
-                compatSwitch = true,
-                useDarker = useDarker
-            )
+        switchView.trackDrawable = StateListDrawable().apply {
+            addState(intArrayOf(-android.R.attr.state_enabled), pill(ColorUtils.adjustAlpha(offColor, 0.5f)))
+            addState(intArrayOf(android.R.attr.state_checked), pill(color))
+            addState(intArrayOf(), pill(offColor))
         }
+        switchView.thumbDrawable = GradientDrawable().apply {
+            shape = GradientDrawable.OVAL
+            setColor(Color.WHITE)
+            setSize(height, height)
+            setStroke((4 * density).toInt(), Color.TRANSPARENT)
+        }
+        switchView.thumbTintList = null
+        switchView.trackTintList = null
+        switchView.showText = false
     }
 
     // This returns a NEW Drawable because of the mutate() call. The mutate() call is necessary because Drawables with the same resource have shared states otherwise.

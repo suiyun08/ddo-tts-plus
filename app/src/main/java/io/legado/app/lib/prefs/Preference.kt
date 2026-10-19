@@ -1,6 +1,8 @@
 package io.legado.app.lib.prefs
 
 import android.content.Context
+import android.graphics.drawable.GradientDrawable
+import android.graphics.Color
 import android.graphics.drawable.Drawable
 import android.util.AttributeSet
 import android.view.LayoutInflater
@@ -12,6 +14,8 @@ import androidx.core.view.isGone
 import androidx.core.view.isVisible
 import androidx.preference.PreferenceViewHolder
 import io.legado.app.R
+import io.legado.app.utils.dpToPx
+import io.legado.app.help.config.AppConfig
 import io.legado.app.lib.theme.accentColor
 import io.legado.app.lib.theme.bottomBackground
 import io.legado.app.lib.theme.getPrimaryTextColor
@@ -34,6 +38,12 @@ open class Preference(context: Context, attrs: AttributeSet) :
     }
 
     companion object {
+
+        /** 设置项图标底色 */
+        private val iconColors = intArrayOf(
+            0xFF4C8BF5.toInt(), 0xFF34A853.toInt(), 0xFFF29D38.toInt(), 0xFF8E6CEF.toInt(),
+            0xFFEF6C8E.toInt(), 0xFF3DB7C4.toInt(), 0xFFE8A33D.toInt(), 0xFF7A8590.toInt()
+        )
 
         fun <T : View> bindView(
             context: Context,
@@ -69,7 +79,22 @@ open class Preference(context: Context, attrs: AttributeSet) :
             if (iconView is ImageView) {
                 iconView.isVisible = icon != null
                 iconView.setImageDrawable(icon)
-                iconView.setColorFilter(context.accentColor)
+                if (icon != null && !AppConfig.isEInkMode) {
+                    // 彩色圆角方块 + 白色图标，按标题固定取色，便于快速辨认
+                    val size = 30.dpToPx()
+                    iconView.layoutParams = iconView.layoutParams.apply {
+                        width = size
+                        height = size
+                    }
+                    iconView.setPadding(6.dpToPx(), 6.dpToPx(), 6.dpToPx(), 6.dpToPx())
+                    iconView.background = GradientDrawable().apply {
+                        cornerRadius = 8.dpToPx().toFloat()
+                        setColor(iconColors[(title.toString().hashCode() % iconColors.size + iconColors.size) % iconColors.size])
+                    }
+                    iconView.setColorFilter(Color.WHITE)
+                } else {
+                    iconView.setColorFilter(context.accentColor)
+                }
             }
 
             if (weightLayoutRes != null && weightLayoutRes != 0 && viewId != null && viewId != 0) {
